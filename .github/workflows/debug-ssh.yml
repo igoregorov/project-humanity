@@ -10,25 +10,26 @@ jobs:
       - name: Check if SSH_PRIVATE_KEY secret is set
         run: |
           if [ -z "${SSH_KEY}" ]; then
-            echo "❌ ERROR: SSH_PRIVATE_KEY secret is empty or not set."
+            echo "ERROR: SSH_PRIVATE_KEY secret is empty or not set."
             exit 1
           else
-            echo "✅ SSH_PRIVATE_KEY secret is present."
+            echo "SSH_PRIVATE_KEY secret is present."
           fi
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Prepare and inspect SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '\r' > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+        - name: Prepare SSH key
+          run: |
+            mkdir -p ~/.ssh
+            cat > ~/.ssh/deploy_key << 'EOF'
+        ${{ secrets.SSH_PRIVATE_KEY }}
+        EOF
+            chmod 600 ~/.ssh/deploy_key
 
-          # Diagnostics (safe — GitHub masks secrets automatically)
-          echo "Key total lines: $(wc -l < ~/.ssh/deploy_key)"
-          echo "First line: $(head -n1 ~/.ssh/deploy_key)"
-          echo "Last line: $(tail -n1 ~/.ssh/deploy_key)"
-
+            echo "Key file written. Lines:"
+            wc -l ~/.ssh/deploy_key
+            echo "First line:"; head -n1 ~/.ssh/deploy_key
+            echo "Last line:"; tail -n1 ~/.ssh/deploy_key
       - name: Scan and verify server host key
         run: |
           ssh-keyscan -t rsa "$SSH_HOST" > ~/.ssh/known_hosts
