@@ -20,13 +20,20 @@ jobs:
       - name: Install dependencies
         run: composer install --no-dev --optimize-autoloader
 
-      - name: Deploy via rsync over SSH
-        uses: burnett01/rsync-deployments@v2.3
-        with:
-          switches: -avz --delete
-          path: ./
-          remote_path: /storage/home/srv243698/projecthumanity.space
-          remote_host: ${{ secrets.SSH_HOST }}
-          remote_user: ${{ secrets.SSH_USER }}
-          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          options: --exclude='.git' --exclude='.github' --exclude='.env'
+      - name: Deploy via raw rsync
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "$SSH_HOST" >> ~/.ssh/known_hosts
+
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='.env' \
+            --exclude='.github' \
+            -e "ssh -i ~/.ssh/deploy_key -p 22" \
+            ./ "$SSH_USER@$SSH_HOST:/storage/home/srv243698/projecthumanity.space"
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
