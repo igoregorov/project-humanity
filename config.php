@@ -34,7 +34,7 @@ class DotEnv
 
 $currentHostname = gethostname();
 if (str_ends_with($currentHostname, 'hoster.ru')) {
-    $envFile = __DIR__ . '/.env.production';
+    $envFile = __DIR__ . '/../config/.env.production';
     $environment = 'production';
 } else {
     $envFile = __DIR__ . '/.env.local';
