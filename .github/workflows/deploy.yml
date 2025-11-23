@@ -32,10 +32,10 @@ jobs:
       SSH_USER: ${{ secrets.SSH_USER }}
 
   deploy:
-    name: 🚀 Deploy to Server
+    name: Deploy to Server
     needs: debug-ssh
     runs-on: ubuntu-latest
-    if: false
+    if: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
