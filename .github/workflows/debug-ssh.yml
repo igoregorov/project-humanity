@@ -9,23 +9,20 @@ jobs:
     steps:
       - name: Prepare SSH key securely
         run: |
-          # Очистка от whitespace и Windows-переносов
+          mkdir -p ~/.ssh
           echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Диагностика ключа (без раскрытия)
-          echo "🔍 Key length (lines): $(wc -l < ~/.ssh/deploy_key)"
-          echo "🔍 First 4 chars: $(head -n1 ~/.ssh/deploy_key | cut -c1-4)"
-          echo "🔍 Last 4 chars: $(tail -n1 ~/.ssh/deploy_key | rev | cut -c1-4 | rev)"
+          echo "Key length (lines): $(wc -l < ~/.ssh/deploy_key)"
+          echo "First 4 chars: $(head -n1 ~/.ssh/deploy_key | cut -c1-4)"
+          echo "Last 4 chars: $(tail -n1 ~/.ssh/deploy_key | rev | cut -c1-4 | rev)"
 
       - name: Gather server key info
         run: |
-          mkdir -p ~/.ssh
           ssh-keyscan -t rsa "$SSH_HOST" > ~/.ssh/known_hosts
-          echo "Server key fingerprint:"
           ssh-keygen -l -f ~/.ssh/known_hosts
 
-      - name: 📡 Test SSH with verbose output (safe)
+      - name: Test SSH with verbose output
         run: |
           echo "Attempting SSH connection with debug flags..."
           ssh -i ~/.ssh/deploy_key \
