@@ -48,12 +48,11 @@ class SimpleContainer
     // Метод для получения shared (один экземпляр) сервиса
     public function singleton($id, callable $callable): static
     {
-        $this->factories[$id] = function ($c) use ($callable) {
-            static $instance;
-            if (null === $instance) {
-                $instance = $callable($c);
+        $this->factories[$id] = function ($container) use ($id, $callable) {
+            if (!array_key_exists($id, $container->values)) {
+                $container->values[$id] = $callable($container);
             }
-            return $instance;
+            return $container->values[$id];
         };
         return $this;
     }

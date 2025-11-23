@@ -45,18 +45,6 @@ if (!isset($container)) {
 $config = $container->get('config');
 $debugMode = $config['app']['debug'];
 
-// --- ТЕСТ ПОДКЛЮЧЕНИЯ К БД (временно, для проверки) ---
-if ($debugMode) {
-    $pdo = $container->get('pdo');
-    try {
-        $stmt = $pdo->query("SELECT 1 as test_connection");
-        $result = $stmt->fetch();
-        error_log("Database connection test: " . ($result ? "SUCCESS" : "FAILED"));
-    } catch (PDOException $e) {
-        error_log("Database connection failed: " . $e->getMessage());
-    }
-}
-
 function renderTemplate(string $templateFile, TemplateDataInterface $data): void
 {
     $allowedPaths = ['includes/'];
