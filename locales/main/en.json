@@ -1,0 +1,31 @@
+{
+    "site_title": "Project Humanity",
+    "page_title": "Home",
+    "description": "Space expansion without money or laws. A new state of mind.",
+    "version": "v0.1",
+    "mission": "Mission",
+    "mission_text": [
+        "We are creating a new form of civilization no money, no hierarchy, no laws.",
+        "Only reason, trust, and the drive toward stars.",
+        "This is not utopia. This is the engineering of the future."
+    ],
+    "principles": "Principles",
+    "principles_list": [
+        "No money resources are distributed by need and meaning.",
+        "No laws behavior is regulated by reason and trust.",
+        "Open architecture anyone can contribute."
+    ],
+    "join": "How to Join",
+    "join_text": [
+        "We are looking for engineers, philosophers, dreamers.",
+        "Join the discussion, propose ideas, help build."
+    ],
+    "news": "News",
+    "no_news": "No news yet.",
+    "upcoming_events": "Upcoming Events",
+    "no_upcoming_events": "No upcoming events yet.",
+    "contact": "Contact us",
+    "copyright": "All rights reserved... or not?",
+    "telegram" : "Join on Telegram",
+    "made_with": "Made with faith in the future."
+}

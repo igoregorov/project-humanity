@@ -1,0 +1,150 @@
+:root {
+    --bg: #0a0a0a;
+    --text: #e0e0e0;
+    --accent: #4cc9f0;
+    --border: #333;
+}
+
+body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px; /* Увеличим ширину для трёх колонок */
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1rem;
+    margin-bottom: 2rem;
+}
+
+h1 {
+    color: var(--accent);
+    font-size: 2.5rem;
+}
+
+.tagline {
+    font-size: 1.2rem;
+    opacity: 0.8;
+}
+
+.mission {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    border-left: 3px solid var(--accent);
+    background-color: rgba(76, 201, 240, 0.05);
+}
+
+footer {
+    margin-top: 3rem;
+    text-align: center;
+    font-size: 0.9rem;
+    opacity: 0.6;
+}
+
+.lang-switch {
+    float: right;
+    margin-top: -3rem;
+}
+
+.lang-switch a {
+    color: var(--accent);
+    text-decoration: none;
+    margin-left: 1rem;
+    opacity: 0.7;
+}
+
+.lang-switch a:hover {
+    opacity: 1;
+}
+
+/* === Трёхколоночный макет === */
+.layout {
+    display: flex;
+    gap: 2rem;
+    width: 100%;
+}
+
+.sidebar {
+    flex: 1;
+    background-color: rgba(76, 201, 240, 0.03); /* Тот же акцент, но темнее */
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+.sidebar h3 {
+    color: var(--accent);
+    margin-top: 0;
+    font-size: 1.3rem;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 0.5rem;
+}
+
+.main-content {
+    flex: 2; /* Центр шире */
+    min-width: 0; /* Предотвращает overflow */
+}
+
+/* === Стили для списка событий === */
+.timeline-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.timeline-item {
+    margin-bottom: 1.2rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid rgba(76, 201, 240, 0.1); /* Лёгкая граница */
+}
+
+.timeline-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.timeline-item time {
+    display: block;
+    color: var(--accent);
+    font-weight: bold;
+    margin-bottom: 0.3rem;
+    font-size: 0.9em;
+}
+
+.timeline-item strong {
+    display: block;
+    margin-bottom: 0.3rem;
+}
+
+.timeline-item p {
+    margin: 0;
+    font-size: 0.95em;
+    opacity: 0.9;
+}
+
+/* === Адаптивность (для мобильных) === */
+@media (max-width: 900px) {
+    .layout {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        border-top: 1px solid var(--border);
+        border-left: 1px solid var(--border);
+        border-right: 1px solid var(--border);
+        border-radius: 0;
+    }
+
+    .container {
+        padding: 1rem;
+    }
+}
