@@ -18,7 +18,7 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
-        - name: Prepare SSH key
+      - name: Prepare SSH key
           run: |
             mkdir -p ~/.ssh
             cat > ~/.ssh/deploy_key << 'EOF'
@@ -30,6 +30,7 @@ jobs:
             wc -l ~/.ssh/deploy_key
             echo "First line:"; head -n1 ~/.ssh/deploy_key
             echo "Last line:"; tail -n1 ~/.ssh/deploy_key
+            
       - name: Scan and verify server host key
         run: |
           ssh-keyscan -t rsa "$SSH_HOST" > ~/.ssh/known_hosts
