@@ -7,33 +7,46 @@ jobs:
   debug-ssh:
     runs-on: ubuntu-24.04
     steps:
-      - name: Prepare SSH key securely
+      - name: Check if SSH_PRIVATE_KEY secret is set
+        run: |
+          if [ -z "${SSH_KEY}" ]; then
+            echo "❌ ERROR: SSH_PRIVATE_KEY secret is empty or not set."
+            exit 1
+          else
+            echo "✅ SSH_PRIVATE_KEY secret is present."
+          fi
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Prepare and inspect SSH key
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          echo "Key length (lines): $(wc -l < ~/.ssh/deploy_key)"
-          echo "First 4 chars: $(head -n1 ~/.ssh/deploy_key | cut -c1-4)"
-          echo "Last 4 chars: $(tail -n1 ~/.ssh/deploy_key | rev | cut -c1-4 | rev)"
+          # Diagnostics (safe — GitHub masks secrets automatically)
+          echo "Key total lines: $(wc -l < ~/.ssh/deploy_key)"
+          echo "First line: $(head -n1 ~/.ssh/deploy_key)"
+          echo "Last line: $(tail -n1 ~/.ssh/deploy_key)"
 
-      - name: Gather server key info
+      - name: Scan and verify server host key
         run: |
           ssh-keyscan -t rsa "$SSH_HOST" > ~/.ssh/known_hosts
           ssh-keygen -l -f ~/.ssh/known_hosts
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
 
-      - name: Test SSH with verbose output
+      - name: Test SSH connection with verbose debug output
         run: |
-          echo "Attempting SSH connection with debug flags..."
+          echo "Initiating SSH connection..."
           ssh -i ~/.ssh/deploy_key \
               -o ConnectTimeout=15 \
               -o BatchMode=yes \
               -o PubkeyAcceptedAlgorithms=+ssh-rsa \
               -o HostKeyAlgorithms=+ssh-rsa \
               -v \
-              "$SSH_USER@$SSH_HOST" "echo 'SUCCESS: Authenticated'" 2>&1 | \
-          grep -E "(debug1:|Authentication|Permission|Disconnect)"
+              "$SSH_USER@$SSH_HOST" "echo 'Connection successful'" 2>&1 | \
+          grep -E "(debug1:|Authentication|Permission|Disconnect|sign_and_send_pubkey)"
         env:
-          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
