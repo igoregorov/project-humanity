@@ -4,38 +4,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  debug-ssh:
-    name: 🔍 Debug SSH Connection
-    runs-on: ubuntu-latest
-    steps:
-      - name: Show key metadata (safe)
-        run: |
-          echo "Lines in SSH key:"
-          echo "$SSH_KEY" | wc -l
-          echo "First line:"
-          echo "$SSH_KEY" | head -n 1
-          echo "Last line:"
-          echo "$SSH_KEY" | tail -n 1
-
-      - name: Test SSH connectivity
-        run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "$SSH_HOST" >> ~/.ssh/known_hosts
-          echo "Connecting to $SSH_HOST as $SSH_USER..."
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 -o BatchMode=yes "$SSH_USER@$SSH_HOST" "echo 'SUCCESS: Authenticated via SSH'"
-
-    env:
-      SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      SSH_HOST: ${{ secrets.SSH_HOST }}
-      SSH_USER: ${{ secrets.SSH_USER }}
-
   deploy:
     name: Deploy to Server
-    needs: debug-ssh
     runs-on: ubuntu-latest
-    if: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,7 +27,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "$SSH_HOST" >> ~/.ssh/known_hosts
           rsync -avz --delete \
-            --exclude='.git' --exclude='.env' --exclude='.github' \
+            --exclude='.git' --exclude='.github' --exclude='.env*' --exclude='.htaccess' \
             -e "ssh -i ~/.ssh/deploy_key -p 22" \
             ./ "$SSH_USER@$SSH_HOST:/storage/home/srv243698/projecthumanity.space"
 
