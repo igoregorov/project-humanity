@@ -2,7 +2,8 @@ name: Project Humanity — Manual Deploy & Debug
 
 on:
   workflow_dispatch:
-
+  push:
+    branches: [ master ]
 jobs:
   deploy:
     name: Deploy to Server
@@ -27,7 +28,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "$SSH_HOST" >> ~/.ssh/known_hosts
           rsync -avz --delete \
-            --exclude='.git' --exclude='.github' --exclude='.env*' --exclude='.htaccess' \
+            --exclude='.git' --exclude='.github' --exclude='.gitignore' --exclude='.env*' --exclude='.htaccess' \
             -e "ssh -i ~/.ssh/deploy_key -p 22" \
             ./ "$SSH_USER@$SSH_HOST:/storage/home/srv243698/projecthumanity.space"
 
