@@ -19,17 +19,17 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Prepare SSH key
-          run: |
-            mkdir -p ~/.ssh
-            cat > ~/.ssh/deploy_key << 'EOF'
-        ${{ secrets.SSH_PRIVATE_KEY }}
-        EOF
-            chmod 600 ~/.ssh/deploy_key
+        run: |
+          mkdir -p ~/.ssh
+          cat > ~/.ssh/deploy_key << 'EOF'
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          EOF
+          chmod 600 ~/.ssh/deploy_key
 
-            echo "Key file written. Lines:"
-            wc -l ~/.ssh/deploy_key
-            echo "First line:"; head -n1 ~/.ssh/deploy_key
-            echo "Last line:"; tail -n1 ~/.ssh/deploy_key
+          echo "Key file written. Lines:"
+          wc -l ~/.ssh/deploy_key
+          echo "First line:"; head -n1 ~/.ssh/deploy_key
+          echo "Last line:"; tail -n1 ~/.ssh/deploy_key
             
       - name: Scan and verify server host key
         run: |
