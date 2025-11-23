@@ -1,11 +1,41 @@
-name: Deploy Project Humanity (Manual)
+name: Project Humanity — Manual Deploy & Debug
 
 on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  debug-ssh:
+    name: 🔍 Debug SSH Connection
     runs-on: ubuntu-latest
+    steps:
+      - name: Show key metadata (safe)
+        run: |
+          echo "Lines in SSH key:"
+          echo "$SSH_KEY" | wc -l
+          echo "First line:"
+          echo "$SSH_KEY" | head -n 1
+          echo "Last line:"
+          echo "$SSH_KEY" | tail -n 1
+
+      - name: Test SSH connectivity
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "$SSH_HOST" >> ~/.ssh/known_hosts
+          echo "Connecting to $SSH_HOST as $SSH_USER..."
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 -o BatchMode=yes "$SSH_USER@$SSH_HOST" "echo 'SUCCESS: Authenticated via SSH'"
+
+    env:
+      SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+
+  deploy:
+    name: 🚀 Deploy to Server
+    needs: debug-ssh
+    runs-on: ubuntu-latest
+    if: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,36 +46,21 @@ jobs:
           php-version: '8.1'
           tools: composer
 
-      - name: Install dependencies
+      - name: Install PHP dependencies
         run: composer install --no-dev --optimize-autoloader
 
-      - name: 🔍 Debug SSH Key (safe)
-        run: |
-          echo "🔑 Lines in SSH key:"
-          echo "$SSH_KEY" | wc -l
-          echo "🔑 First line:"
-          echo "$SSH_KEY" | head -n 1
-          echo "🔑 Last line:"
-          echo "$SSH_KEY" | tail -n 1
-
-      - name: 🧪 Test SSH Connection
+      - name: Deploy via rsync
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan "$SSH_HOST" >> ~/.ssh/known_hosts
-          echo "➡️ Attempting SSH connection to $SSH_HOST..."
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 "$SSH_USER@$SSH_HOST" "echo '✅ SSH connection successful'"
-
-      - name: 🚀 Deploy via rsync (skip if test fails)
-        run: |
           rsync -avz --delete \
-            --exclude='.git' \
-            --exclude='.env' \
-            --exclude='.github' \
+            --exclude='.git' --exclude='.env' --exclude='.github' \
             -e "ssh -i ~/.ssh/deploy_key -p 22" \
             ./ "$SSH_USER@$SSH_HOST:/storage/home/srv243698/projecthumanity.space"
-        env:
-          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
+
+    env:
+      SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
