@@ -45,7 +45,6 @@ class SimpleContainer
         throw new InvalidArgumentException("Identifier '$id' is not defined.");
     }
 
-    // Метод для получения shared (один экземпляр) сервиса
     public function singleton($id, callable $callable): static
     {
         $this->factories[$id] = function ($container) use ($id, $callable) {
