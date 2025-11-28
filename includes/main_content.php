@@ -1,17 +1,20 @@
 <?php
 declare(strict_types=1);
 // main_content.php
-/** @var \App\View\MainContentData $data */
+/** @var MainContentData $data */
 
 use App\View\MainContentData;
+
+// Подключаем функцию санитизации (если ещё не подключена)
+require_once __DIR__ . '/helpers.php';
 ?>
 
 <section class="mission">
-    <h2><?= $data->translator->translate($data->lang_code, 'mission') ?></h2>
+    <h2><?= htmlspecialchars($data->translator->translate($data->lang_code, 'mission')) ?></h2>
     <?php $mission_text = $data->translator->translateArray($data->lang_code, 'mission_text'); ?>
-    <p><?= $mission_text[0] ?? '' ?></p>
-    <p><?= $mission_text[1] ?? '' ?></p>
-    <p><?= $mission_text[2] ?? '' ?></p>
+    <?php foreach ($mission_text as $paragraph): ?>
+        <p><?= sanitizeHtml($paragraph) ?></p>
+    <?php endforeach; ?>
 </section>
 
 <section>
@@ -31,8 +34,8 @@ use App\View\MainContentData;
 <section>
     <h2><?= $data->translator->translate($data->lang_code, 'join') ?></h2>
     <?php $join_text = $data->translator->translateArray($data->lang_code, 'join_text'); ?>
-    <p><?= $join_text[0] ?? '' ?></p>
-    <p><?= $join_text[1] ?? '' ?></p>
+    <p><?= htmlspecialchars($join_text[0] ?? '') ?></p>
+    <p><?= htmlspecialchars($join_text[1] ?? '') ?></p>
     <p>
         <a href="mailto:hello@projecthumanity.space"><?= $data->translator->translate($data->lang_code, 'contact') ?></a> •
         <a href="https://t.me/projecthumanity_space" target="_blank" rel="noopener noreferrer">

@@ -70,6 +70,7 @@ $config = [
         'environment' => $environment,
         'locales' => [
             'main'    => __DIR__ . '/' . ($_ENV['LOCALES_MAIN_PATH'] ?? 'locales/main'),
+            'about'   => __DIR__ . '/' . ($_ENV['LOCALES_ABOUT_PATH'] ?? 'locales/about'),
             'events'  => __DIR__ . '/' . ($_ENV['LOCALES_EVENTS_PATH'] ?? 'locales/events'),
             'news'    => __DIR__ . '/' . ($_ENV['LOCALES_NEWS_PATH'] ?? 'locales/news'),
         ],
@@ -78,5 +79,4 @@ $config = [
         'storage_driver' => $_ENV['STORAGE_DRIVER'] ?? 'json',
     ]
 ];
-
 return $config;

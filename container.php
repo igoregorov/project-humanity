@@ -66,6 +66,17 @@ $container->singleton('news_repository', function ($c) use ($storageDriver) {
     return RepositoryFactory::createNewsRepository($storageDriver, $locales['news'], $pdo);
 });
 
+$container->singleton('about_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createContentRepository($storageDriver, $locales['about'], $pdo);
+});
+
+$container->singleton('about_service', fn($c) => new LocalizedContentService(
+    $c->get('about_repository'),
+    $c->get('language_service')
+));
+
 // Сервисы для панелей
 $container->singleton('localized_content', fn($c) => new LocalizedContentService(
     $c->get('content_repository'),

@@ -30,6 +30,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_regenerate_id(true);
 }
 
+use App\View\NavData;
+use App\View\PageAboutData;
 use App\View\TemplateDataInterface;
 use App\View\FooterData;
 use App\View\MainContentData;
@@ -37,10 +39,12 @@ use App\View\SidebarLeftData;
 use App\View\SidebarRightData;
 
 $container = require_once 'container.php';
+
 if (!isset($container)) {
     header('Content-Type: text/plain; charset=utf-8');
     die('Application configuration error');
 }
+require_once 'includes/helpers.php';
 
 $config = $container->get('config');
 $debugMode = $config['app']['debug'];
@@ -80,19 +84,32 @@ set_exception_handler(function (Throwable $e) use ($debugMode) {
     exit(1);
 });
 
+$page = $_GET['page'] ?? 'home';
+$allowedPages = ['home', 'about'];
+if (!in_array($page, $allowedPages, true)) {
+    $page = 'home';
+}
+
 $siteData = $container->get('site_data');
 $translator = $siteData['translator'];
 $lang_code = $siteData['lang_code'];
 $upcoming_events = $siteData['events_data'];
 $news_items = $siteData['news_data'];
+$current_lang = $siteData['lang_code'];
+$page_title_map = [
+    'home' => $translator->translate($current_lang, 'page_title'),
+    'about' => $translator->translate($current_lang, 'about_title'),
+];
+
 $site_title = $siteData['site_title'];
 $page_title = $siteData['page_title'];
 $description = $siteData['description'];
 $version = $siteData['version'];
+
 ?>
 
 <!DOCTYPE html>
-<html lang="<?= $lang_code ?>">
+<html lang="<?= $current_lang ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -109,9 +126,14 @@ $version = $siteData['version'];
         <p class="tagline"><?= htmlspecialchars($description) ?></p>
         <p><small><?= htmlspecialchars($version) ?></small></p>
 
+        <?php renderTemplate('includes/nav.php', new NavData(
+            current_lang: $current_lang,
+            current_page: $page
+        ));?>
+
         <div class="lang-switch">
-            <a href="?lang=ru" <?= $lang_code === 'ru' ? 'style="opacity: 1;"' : '' ?>>RU</a>
-            <a href="?lang=en" <?= $lang_code === 'en' ? 'style="opacity: 1;"' : '' ?>>EN</a>
+            <a href="?page=<?= $page ?>&lang=ru"<?= $current_lang === 'ru' ? ' style="opacity: 1;"' : '' ?>>RU</a>
+            <a href="?page=<?= $page ?>&lang=en"<?= $current_lang === 'en' ? ' style="opacity: 1;"' : '' ?>>EN</a>
         </div>
     </header>
 
@@ -120,22 +142,34 @@ $version = $siteData['version'];
             <?php renderTemplate('includes/sidebar_left.php', new SidebarLeftData(
                 translator: $translator,
                 upcoming_events: $upcoming_events,
-                lang_code: $lang_code
+                lang_code: $current_lang
             )); ?>
         </aside>
 
         <main class="main-content">
-            <?php renderTemplate('includes/main_content.php', new MainContentData(
-                translator: $translator,
-                lang_code: $lang_code
-            )); ?>
+            <?php
+            switch ($page) {
+                case 'about':
+                    $about_service = $container->get('about_service');
+                    renderTemplate('includes/page_about.php', new PageAboutData(
+                        translator: $about_service,
+                        lang_code: $current_lang
+                    ));
+                    break;
+                default:
+                    renderTemplate('includes/main_content.php', new MainContentData(
+                        translator: $translator,
+                        lang_code: $current_lang
+                    ));
+            }
+            ?>
         </main>
 
         <aside class="sidebar sidebar-right">
             <?php renderTemplate('includes/sidebar_right.php', new SidebarRightData(
                 translator: $translator,
                 news_items: $news_items,
-                lang_code: $lang_code
+                lang_code: $current_lang
             )); ?>
         </aside>
     </div>
@@ -143,7 +177,7 @@ $version = $siteData['version'];
     <?php renderTemplate('includes/footer.php', new FooterData(
         site_title: $site_title,
         translator: $translator,
-        lang_code: $lang_code
+        lang_code: $current_lang
     )); ?>
 
 </div>
