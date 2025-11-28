@@ -66,6 +66,7 @@ $container->singleton('news_repository', function ($c) use ($storageDriver) {
     return RepositoryFactory::createNewsRepository($storageDriver, $locales['news'], $pdo);
 });
 
+// Раздел О Проекте
 $container->singleton('about_repository', function ($c) use ($storageDriver) {
     $locales = $c->get('config')['app']['locales'];
     $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
@@ -74,6 +75,18 @@ $container->singleton('about_repository', function ($c) use ($storageDriver) {
 
 $container->singleton('about_service', fn($c) => new LocalizedContentService(
     $c->get('about_repository'),
+    $c->get('language_service')
+));
+
+//Раздел Принципы
+$container->singleton('principles_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createContentRepository($storageDriver, $locales['principles'], $pdo);
+});
+
+$container->singleton('principles_service', fn($c) => new LocalizedContentService(
+    $c->get('principles_repository'),
     $c->get('language_service')
 ));
 

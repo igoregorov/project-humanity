@@ -32,6 +32,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 use App\View\NavData;
 use App\View\PageAboutData;
+use App\View\PagePrinciplesData;
 use App\View\TemplateDataInterface;
 use App\View\FooterData;
 use App\View\MainContentData;
@@ -85,7 +86,7 @@ set_exception_handler(function (Throwable $e) use ($debugMode) {
 });
 
 $page = $_GET['page'] ?? 'home';
-$allowedPages = ['home', 'about'];
+$allowedPages = ['home', 'about', 'principles'];
 if (!in_array($page, $allowedPages, true)) {
     $page = 'home';
 }
@@ -99,8 +100,8 @@ $current_lang = $siteData['lang_code'];
 $page_title_map = [
     'home' => $translator->translate($current_lang, 'page_title'),
     'about' => $translator->translate($current_lang, 'about_title'),
+    'principles' => $translator->translate($current_lang, 'principles_title'),
 ];
-
 $site_title = $siteData['site_title'];
 $page_title = $siteData['page_title'];
 $description = $siteData['description'];
@@ -128,8 +129,9 @@ $version = $siteData['version'];
 
         <?php renderTemplate('includes/nav.php', new NavData(
             current_lang: $current_lang,
-            current_page: $page
-        ));?>
+            current_page: $page,
+            translator: $translator
+        )); ?>
 
         <div class="lang-switch">
             <a href="?page=<?= $page ?>&lang=ru"<?= $current_lang === 'ru' ? ' style="opacity: 1;"' : '' ?>>RU</a>
@@ -153,6 +155,13 @@ $version = $siteData['version'];
                     $about_service = $container->get('about_service');
                     renderTemplate('includes/page_about.php', new PageAboutData(
                         translator: $about_service,
+                        lang_code: $current_lang
+                    ));
+                    break;
+                case 'principles':
+                    $principles_service = $container->get('principles_service');
+                    renderTemplate('includes/page_principles.php', new PagePrinciplesData(
+                        translator: $principles_service,
                         lang_code: $current_lang
                     ));
                     break;
