@@ -1,0 +1,37 @@
+
+/* === Стили для навигационного меню === */
+.main-nav {
+    display: flex;
+    gap: 1rem;
+    padding: 0;
+    margin: 1rem 0;
+    justify-content: flex-start;
+}
+
+.main-nav a { /* Эти стили будут НАДСТРАИВАТЬСЯ поверх глобального сброса */
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background-color: transparent;
+    color: var(--text); /* Цвет текста кнопки (унаследованный от глобала, но переопределённый здесь) */
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    text-align: center;
+    text-decoration: none; /* Важно: явно указать, чтобы не было подчёркивания по умолчанию */
+    font-weight: normal;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.main-nav a:hover {
+    background-color: rgba(76, 201, 240, 0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.main-nav a.active {
+    background-color: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    font-weight: bold;
+}

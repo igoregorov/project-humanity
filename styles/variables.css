@@ -1,0 +1,9 @@
+:root {
+    --bg: #0a0a0a;
+    --text: #e0e0e0;
+    --accent: #4cc9f0;
+    --border: #333;
+    /* Добавим переменные для ширины боковых панелей */
+    --sidebar-width-left: 15%; /* По умолчанию */
+    --sidebar-width-right: 15%;
+}

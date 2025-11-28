@@ -1,10 +1,26 @@
-:root {
-    --bg: #0a0a0a;
-    --text: #e0e0e0;
-    --accent: #4cc9f0;
-    --border: #333;
+/* styles.css */
+@import './styles/variables.css';
+@import './styles/layout.css';
+@import './styles/navigation.css';
+
+
+/* === Глобальный сброс стиля ссылок === */
+/* Все ссылки: не посещённые и посещённые - выглядят одинаково */
+a:link,
+a:visited {
+    color: inherit; /* Использует цвет родительского элемента */
+    text-decoration: none; /* Убирает подчёркивание */
 }
 
+/* Поведение при наведении и активном состоянии */
+a:hover,
+a:active {
+    color: var(--accent); /* Цвет при наведении и активном состоянии */
+    text-decoration: underline; /* (Опционально) добавить подчёркивание при наведении */
+}
+
+
+/* --- Остальные стили, НЕ касающиеся layout и sidebar --- */
 body {
     background-color: var(--bg);
     color: var(--text);
@@ -15,7 +31,7 @@ body {
 }
 
 .container {
-    max-width: 1200px; /* Увеличим ширину для трёх колонок */
+    max-width: 1200px;
     margin: 0 auto;
     padding: 2rem;
 }
@@ -66,34 +82,6 @@ footer {
     opacity: 1;
 }
 
-/* === Трёхколоночный макет === */
-.layout {
-    display: flex;
-    gap: 2rem;
-    width: 100%;
-}
-
-.sidebar {
-    flex: 1;
-    background-color: rgba(76, 201, 240, 0.03); /* Тот же акцент, но темнее */
-    padding: 1.5rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-}
-
-.sidebar h3 {
-    color: var(--accent);
-    margin-top: 0;
-    font-size: 1.3rem;
-    border-bottom: 1px dashed var(--border);
-    padding-bottom: 0.5rem;
-}
-
-.main-content {
-    flex: 2; /* Центр шире */
-    min-width: 0; /* Предотвращает overflow */
-}
-
 /* === Стили для списка событий === */
 .timeline-list {
     list-style: none;
@@ -104,7 +92,7 @@ footer {
 .timeline-item {
     margin-bottom: 1.2rem;
     padding-bottom: 0.8rem;
-    border-bottom: 1px solid rgba(76, 201, 240, 0.1); /* Лёгкая граница */
+    border-bottom: 1px solid rgba(76, 201, 240, 0.1);
 }
 
 .timeline-item:last-child {
@@ -133,10 +121,6 @@ footer {
 
 /* === Адаптивность (для мобильных) === */
 @media (max-width: 900px) {
-    .layout {
-        flex-direction: column;
-    }
-
     .sidebar {
         border-top: 1px solid var(--border);
         border-left: 1px solid var(--border);
@@ -166,3 +150,4 @@ footer {
     margin-bottom: 0.4em;
     letter-spacing: -0.02em;
 }
+/* --- Конец остальных стилей --- */
