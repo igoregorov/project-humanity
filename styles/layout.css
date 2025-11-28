@@ -1,0 +1,47 @@
+/* === Трёхколоночный макет === */
+.layout {
+    display: flex;
+    gap: 2rem;
+    width: 100%;
+}
+
+.sidebar {
+    /* Используем переменные для ширины */
+    flex: 0 0 var(--sidebar-width-left); /* Или var(--sidebar-width-right) */
+    background-color: rgba(76, 201, 240, 0.03);
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+.sidebar-left {
+    order: -1; /* Помещаем левую панель первее основного контента в flex */
+}
+
+.sidebar-right {
+    order: 1; /* Помещаем правую панель после основного контента */
+}
+
+.main-content {
+    flex: 1; /* Центральная колонка занимает оставшееся пространство */
+    min-width: 0; /* Предотвращает overflow */
+}
+
+/* Стили, когда панели скрыты */
+.layout.no-sidebar-left .sidebar-left,
+.layout.no-sidebar-right .sidebar-right {
+    display: none;
+}
+
+/* Ширина основного контента при скрытых панелях */
+.layout.no-sidebar-left .main-content {
+    flex: 1 1 calc(100% - var(--sidebar-width-right) - 2rem); /* Учитываем gap */
+}
+
+.layout.no-sidebar-right .main-content {
+    flex: 1 1 calc(100% - var(--sidebar-width-left) - 2rem);
+}
+
+.layout.no-sidebar-left.no-sidebar-right .main-content {
+    flex: 1 1 100%;
+}
