@@ -73,6 +73,7 @@ $config = [
             'about'   => __DIR__ . '/' . ($_ENV['LOCALES_ABOUT_PATH'] ?? 'locales/about'),
             'events'  => __DIR__ . '/' . ($_ENV['LOCALES_EVENTS_PATH'] ?? 'locales/events'),
             'news'    => __DIR__ . '/' . ($_ENV['LOCALES_NEWS_PATH'] ?? 'locales/news'),
+            'principles' => __DIR__ . '/' . ($_ENV['LOCALES_PRINCIPLES_PATH'] ?? 'locales/principles'),
         ],
         'allowed_languages' => array_keys($languagesData),
         'languages' => $languagesData,

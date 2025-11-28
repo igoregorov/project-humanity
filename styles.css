@@ -148,3 +148,21 @@ footer {
         padding: 1rem;
     }
 }
+
+.principles-list {
+    margin: 1.5em 0;
+}
+
+.principle-item {
+    margin-bottom: 1.2em;
+    line-height: 1.6;
+}
+
+.principle-item strong {
+    color: #44a3c0;
+    font-weight: 600;
+    font-size: 1.15em;
+    display: block;
+    margin-bottom: 0.4em;
+    letter-spacing: -0.02em;
+}
