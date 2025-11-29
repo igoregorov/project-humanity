@@ -9,6 +9,8 @@ use App\Application\NewsService;
 use App\Infrastructure\RepositoryFactory;
 use App\Infrastructure\SimpleContainer;
 use App\Services\LanguageService;
+use App\Http\Router;
+
 
 // Загружаем конфигурацию
 $config = require_once 'config.php';
@@ -100,8 +102,33 @@ $container->singleton('localized_content', fn($c) => new LocalizedContentService
 $container->singleton('event_service', fn($c) => new EventsService($c->get('events_repository')));
 $container->singleton('news_service', fn($c) => new NewsService($c->get('news_repository')));
 
+// контроллеры
+$container->singleton(App\Http\Controllers\AboutController::class, function ($c) {
+    return new App\Http\Controllers\AboutController($c);
+});
+$container->singleton(App\Http\Controllers\HomeController::class, function ($c) {
+    return new App\Http\Controllers\HomeController($c);
+});
+$container->singleton(App\Http\Controllers\PrinciplesController::class, function ($c) {
+    return new App\Http\Controllers\PrinciplesController($c);
+});
+
 // Сервис для определения языка запроса
 $container->set('request_lang', $_GET['lang'] ?? 'ru');
+
+// Регистрация роутера ---
+$container->singleton('router', function ($c) {
+    $router = new Router($c);
+
+    // Регистрируем маршруты
+    $router->addRoute('home', App\Http\Controllers\HomeController::class);
+    $router->addRoute('about', App\Http\Controllers\AboutController::class);
+    $router->addRoute('principles', App\Http\Controllers\PrinciplesController::class);
+    // Пример добавления новой страницы:
+    // $router->addRoute('contacts', App\Http\Controllers\ContactsController::class);
+
+    return $router;
+});
 
 // Сервис данных сайта
 $container->singleton('site_data', function ($c) {
