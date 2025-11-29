@@ -2,6 +2,7 @@
 declare(strict_types=1);
 /** @var PagePrinciplesData $data */
 use App\View\PagePrinciplesData;
+require_once __DIR__ . '/helpers.php';
 ?>
 
 <section class="page-principles">
