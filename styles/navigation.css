@@ -1,32 +1,53 @@
-
 /* === Стили для навигационного меню === */
 .main-nav {
     display: flex;
-    gap: 1rem;
+    /* Убираем gap, чтобы элементы были вплотную */
+    gap: 0;
     padding: 0;
     margin: 1rem 0;
     justify-content: flex-start;
+    /* Дополнительно: можно добавить border-radius для скругления углов "цепочки" */
+    /* border-radius: 4px; */
+    /* overflow: hidden; /* Скроет выступающие углы, если скругление есть */
 }
 
-.main-nav a { /* Эти стили будут НАДСТРАИВАТЬСЯ поверх глобального сброса */
+.main-nav a {
+    /* Убираем margin, чтобы не было промежутков */
+    margin: 0;
     display: inline-block;
     padding: 0.75rem 1.5rem;
     background-color: transparent;
-    color: var(--text); /* Цвет текста кнопки (унаследованный от глобала, но переопределённый здесь) */
+    color: var(--text);
+    /* Убираем border-radius у отдельных кнопок, если хотим "цепочку" */
+    /* border-radius: 0; */
+    /* Если хочешь скругление только по краям "цепочки", убери border-radius отсюда */
     border: 2px solid var(--border);
-    border-radius: 4px;
+    /* Важно: border-left у всех, кроме первого, нужно убрать, чтобы не было двойных */
+    border-left-width: 1px; /* Оставляем 1px, чтобы не было разрыва фона при hover */
     text-align: center;
-    text-decoration: none; /* Важно: явно указать, чтобы не было подчёркивания по умолчанию */
+    text-decoration: none;
     font-weight: normal;
     transition: all 0.3s ease;
     cursor: pointer;
 }
 
+/* У первой кнопки убираем левую границу полностью */
+.main-nav a:first-child {
+    border-left: 2px solid var(--border); /* Или border-left-width: 2px; */
+}
+
+/* У последней кнопки можно оставить правую границу, чтобы "цепочка" была завершена */
+.main-nav a:last-child {
+    /* border-right: 2px solid var(--border); - уже есть по умолчанию */
+}
+
 .main-nav a:hover {
+    /* При наведении, чтобы "цепочка" не нарушалась, меняем цвета границ */
     background-color: rgba(76, 201, 240, 0.1);
     border-color: var(--accent);
     color: var(--accent);
     text-decoration: none;
+    /* Важно: не менять ширину border, иначе будет "прыжок" */
 }
 
 .main-nav a.active {
@@ -34,4 +55,6 @@
     color: var(--bg);
     border-color: var(--accent);
     font-weight: bold;
+    /* Активная кнопка может "разорвать" цепочку, если у неё другой цвет границы */
+    /* Но в данном случае цвета совпадают, так что всё ок */
 }
