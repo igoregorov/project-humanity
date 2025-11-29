@@ -2,9 +2,9 @@
   "autoload": {
     "psr-4": {
       "App\\": "src/"
-    }
-  },
-  "require": {
-    "ext-pdo": "*"
+    },
+    "files": [
+      "src/Http/functions.php"
+    ]
   }
 }

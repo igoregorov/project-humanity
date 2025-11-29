@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 /** @var \App\View\PageAboutData $data */
-use App\View\PageAboutData;
+require_once __DIR__ . '/helpers.php';
 ?>
 
 <section class="page-about">

@@ -31,8 +31,10 @@ $container->singleton('pdo', function ($c) {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ]);
         return $pdo;
-    } catch (PDOException $e) {
-        die("Ошибка подключения к БД: " . $e->getMessage());
+    } catch (Exception $e) {
+        // Бросаем исключение вместо die()
+        // Это исключение будет "всплывать" до места его перехвата
+        throw new RuntimeException("Ошибка подключения к БД: " . $e->getMessage(), 0, $e); // Код 0, предыдущее исключение PDOException
     }
 });
 
