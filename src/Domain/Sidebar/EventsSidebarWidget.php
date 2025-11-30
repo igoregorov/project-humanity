@@ -4,12 +4,13 @@ declare(strict_types=1);
 namespace App\Domain\Sidebar;
 
 use App\Application\ContentManager;
+use App\Infrastructure\JsonEventsRepository;
 
 class EventsSidebarWidget extends AbstractSidebarWidget
 {
     public function __construct(
         private readonly ContentManager $contentManager,
-        private readonly \App\Infrastructure\JsonEventsRepository $eventsRepository,
+        private readonly JsonEventsRepository $eventsRepository,
         array $config
     ) {
         parent::__construct($config);
@@ -23,7 +24,7 @@ class EventsSidebarWidget extends AbstractSidebarWidget
         return [
             'type' => 'events',
             'title' => $widgetData['widget_title'],
-            'no_content_message' => $widgetData['no_events'],
+            'no_content_message' => $widgetData['no_items'],
             'events' => $events,
             'max_items' => $this->config['max_items'] ?? 5
         ];

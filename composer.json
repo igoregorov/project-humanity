@@ -6,5 +6,8 @@
     "files": [
       "src/Http/functions.php"
     ]
+  },
+  "require": {
+    "ext-pdo": "*"
   }
 }
