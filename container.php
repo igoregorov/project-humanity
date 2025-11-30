@@ -70,6 +70,25 @@ $container->singleton('news_repository', function ($c) use ($storageDriver) {
     return RepositoryFactory::createNewsRepository($storageDriver, $locales['news'], $pdo);
 });
 
+// Репозитории для виджетов
+$container->singleton('timeline_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createTimelineRepository($storageDriver, $locales['timeline'] ?? './locales/timeline', $pdo);
+});
+
+$container->singleton('social_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createSocialRepository($storageDriver, $locales['social'] ?? './locales/social', $pdo);
+});
+
+$container->singleton('telegram_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createTelegramRepository($storageDriver, $locales['telegram'] ?? './locales/telegram', $pdo);
+});
+
 // Раздел О Проекте
 $container->singleton('about_repository', function ($c) use ($storageDriver) {
     $locales = $c->get('config')['app']['locales'];

@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
 
-// src/Infrastructure/SidebarWidgetFactory.php
-
 namespace App\Infrastructure;
 
 use App\Domain\Sidebar\WidgetFactoryInterface;
@@ -32,13 +30,18 @@ class SidebarWidgetFactory implements WidgetFactoryInterface
                 $this->container->get('news_repository'),
                 $config
             ),
-            'timeline' => new TimelineSidebarWidget($config),
-            'team' => new \App\Domain\Sidebar\TeamSidebarWidget(
-                $this->container->get('team_service'),
+            'timeline' => new TimelineSidebarWidget(
+                $this->container->get('timeline_repository'),
                 $config
             ),
-            'social' => new SocialSidebarWidget($config),
-            'telegram' => new TelegramSidebarWidget($config),
+            'social' => new SocialSidebarWidget(
+                $this->container->get('social_repository'),
+                $config
+            ),
+            'telegram' => new TelegramSidebarWidget(
+                $this->container->get('telegram_repository'),
+                $config
+            ),
             default => null
         };
     }

@@ -4,12 +4,13 @@ declare(strict_types=1);
 namespace App\Domain\Sidebar;
 
 use App\Application\ContentManager;
+use App\Infrastructure\JsonNewsRepository;
 
 class NewsSidebarWidget extends AbstractSidebarWidget
 {
     public function __construct(
         private readonly ContentManager $contentManager,
-        private readonly \App\Infrastructure\JsonNewsRepository $newsRepository,
+        private readonly JsonNewsRepository $newsRepository,
         array $config
     ) {
         parent::__construct($config);
@@ -23,7 +24,7 @@ class NewsSidebarWidget extends AbstractSidebarWidget
         return [
             'type' => 'news',
             'title' => $widgetData['widget_title'],
-            'no_content_message' => $widgetData['no_news'],
+            'no_content_message' => $widgetData['no_items'],
             'news' => $news,
             'max_items' => $this->config['max_items'] ?? 3
         ];

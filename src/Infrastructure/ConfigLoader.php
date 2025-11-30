@@ -76,16 +76,13 @@ class ConfigLoader
                     'max_items' => 3
                 ],
                 'about' => [
-                    'widget' => 'social',
-                    'networks' => ['twitter', 'telegram']
+                    'widget' => 'off'
                 ],
                 'principles' => [
-                    'widget' => 'events',
-                    'max_items' => 5
+                    'widget' => 'off'
                 ],
                 'contacts' => [
-                    'widget' => 'social',
-                    'networks' => ['twitter', 'telegram']
+                    'widget' => 'off'
                 ]
             ]
         ];
@@ -121,6 +118,9 @@ class ConfigLoader
                     'events'  => $_ENV['LOCALES_EVENTS_PATH'] ?? './locales/events',
                     'news'    => $_ENV['LOCALES_NEWS_PATH'] ?? './locales/news',
                     'principles' => $_ENV['LOCALES_PRINCIPLES_PATH'] ?? './locales/principles',
+                    'timeline' => $_ENV['LOCALES_TIMELINE_PATH'] ?? './locales/timeline',
+                    'social' => $_ENV['LOCALES_SOCIAL_PATH'] ?? './locales/social',
+                    'telegram' => $_ENV['LOCALES_TELEGRAM_PATH'] ?? './locales/telegram',
                 ],
                 'allowed_languages' => array_keys($languagesData),
                 'languages' => $languagesData,
