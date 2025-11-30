@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Infrastructure;
 
 use App\Domain\EventsRepositoryInterface;
-use DateTimeImmutable;
 
 class JsonEventsRepository implements EventsRepositoryInterface
 {
@@ -28,12 +27,30 @@ class JsonEventsRepository implements EventsRepositoryInterface
             return [];
         }
 
-        // Фильтруем только будущие события
-        $now = new DateTimeImmutable();
-        return array_filter($data, function ($event) use ($now) {
-            if (!isset($event['date'])) return false;
-            $date = DateTimeImmutable::createFromFormat('Y-m-d', $event['date']);
-            return $date && $date >= $now;
-        });
+        return $data['events'] ?? [];
+    }
+
+    /**
+     * Получает метаданные виджета событий
+     */
+    public function getWidgetData(string $lang): array
+    {
+        $lang = in_array($lang, ['ru', 'en'], true) ? $lang : 'ru';
+        $file = $this->eventsPath . "/$lang.json";
+
+        if (!file_exists($file)) {
+            return [
+                'widget_title' => 'Предстоящие события',
+                'no_events' => 'Пока нет предстоящих событий'
+            ];
+        }
+
+        $json = file_get_contents($file);
+        $data = json_decode($json, true);
+
+        return [
+            'widget_title' => $data['widget_title'] ?? 'Предстоящие события',
+            'no_events' => $data['no_events'] ?? 'Пока нет предстоящих событий'
+        ];
     }
 }

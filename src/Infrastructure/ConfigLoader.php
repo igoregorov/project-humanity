@@ -50,6 +50,47 @@ class ConfigLoader
         return $languagesData;
     }
 
+    private function sidebarConfig(): array
+    {
+        return [
+            'left' => [
+                'home' => [
+                    'widget' => 'events',
+                    'max_items' => 5
+                ],
+                'about' => [
+                    'widget' => 'timeline',
+                    'display_mode' => 'compact'
+                ],
+                'principles' => [
+                    'widget' => 'news',
+                    'max_items' => 1
+                ],
+                'contacts' => [
+                    'widget' => 'off'
+                ]
+            ],
+            'right' => [
+                'home' => [
+                    'widget' => 'news',
+                    'max_items' => 3
+                ],
+                'about' => [
+                    'widget' => 'social',
+                    'networks' => ['twitter', 'telegram']
+                ],
+                'principles' => [
+                    'widget' => 'events',
+                    'max_items' => 5
+                ],
+                'contacts' => [
+                    'widget' => 'social',
+                    'networks' => ['twitter', 'telegram']
+                ]
+            ]
+        ];
+    }
+
     private function buildConfig(string $environment, array $languagesData): array
     {
         $appDebug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
@@ -85,6 +126,7 @@ class ConfigLoader
                 'languages' => $languagesData,
                 'storage_driver' => $_ENV['STORAGE_DRIVER'] ?? 'json',
             ],
+            'sidebars' => $this->sidebarConfig(),
             'version' => $_ENV['SITE_VERSION'] ?? '1.0'
         ];
     }

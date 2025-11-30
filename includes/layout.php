@@ -1,4 +1,3 @@
-<!-- includes/layout.php -->
 <?php
 // layout.php
 // Ожидаем, что $layoutData и $contentHtml будут переданы сюда из ViewRenderer
@@ -15,11 +14,17 @@ $description = $layoutData['description'] ?? '';
 $version = $layoutData['version'] ?? '1.0';
 $page = $layoutData['page'] ?? 'home';
 
-// Извлекаем готовые HTML строки для компонентов
+// Извлекаем готовые HTML строки для компонентов (старая система)
 $navHtml = $layoutData['nav_html'] ?? '';
 $sidebarLeftHtml = $layoutData['sidebar_left_html'] ?? '';
 $sidebarRightHtml = $layoutData['sidebar_right_html'] ?? '';
 $footerHtml = $layoutData['footer_html'] ?? '';
+
+// Новые переменные для системы сайдбаров
+$left_sidebar_html = $layoutData['left_sidebar_html'] ?? '';
+$right_sidebar_html = $layoutData['right_sidebar_html'] ?? '';
+$has_left_sidebar = $layoutData['has_left_sidebar'] ?? false;
+$has_right_sidebar = $layoutData['has_right_sidebar'] ?? false;
 ?>
 <!DOCTYPE html>
 <html lang="<?= $lang_code ?>">
@@ -45,17 +50,31 @@ $footerHtml = $layoutData['footer_html'] ?? '';
     </header>
 
     <div class="layout">
-        <aside class="sidebar sidebar-left">
-            <?= $sidebarLeftHtml ?>
-        </aside>
+        <!-- Левая панель: сначала проверяем новую систему, потом старую -->
+        <?php if ($has_left_sidebar && !empty($left_sidebar_html)): ?>
+            <aside class="sidebar sidebar-left">
+                <?= $left_sidebar_html ?>
+            </aside>
+        <?php elseif (!empty($sidebarLeftHtml)): ?>
+            <aside class="sidebar sidebar-left">
+                <?= $sidebarLeftHtml ?>
+            </aside>
+        <?php endif; ?>
 
         <main class="main-content">
             <?= $contentHtml ?>
         </main>
 
-        <aside class="sidebar sidebar-right">
-            <?= $sidebarRightHtml ?>
-        </aside>
+        <!-- Правая панель: сначала проверяем новую систему, потом старую -->
+        <?php if ($has_right_sidebar && !empty($right_sidebar_html)): ?>
+            <aside class="sidebar sidebar-right">
+                <?= $right_sidebar_html ?>
+            </aside>
+        <?php elseif (!empty($sidebarRightHtml)): ?>
+            <aside class="sidebar sidebar-right">
+                <?= $sidebarRightHtml ?>
+            </aside>
+        <?php endif; ?>
     </div>
 
     <?= $footerHtml ?>

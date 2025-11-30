@@ -1,10 +1,26 @@
 /* styles.css */
+
+/* styles.css */
 @import './styles/variables.css';
 @import './styles/layout.css';
 @import './styles/navigation.css';
 
+/* Стили сайдбаров */
+@import './styles/sidebar/sidebar.css';
+@import './styles/sidebar/sidebar-left.css';
+@import './styles/sidebar/sidebar-right.css';
 
+/* Стили виджетов */
+@import './styles/sidebar/widgets/events-widget.css';
+@import './styles/sidebar/widgets/news-widget.css';
+@import './styles/sidebar/widgets/timeline-widget.css';
+@import './styles/sidebar/widgets/social-widget.css';
+@import './styles/sidebar/widgets/telegram-widget.css';
+
+/* Остальные глобальные стили остаются без изменений */
+/* ... существующий код ... */
 /* === Глобальный сброс стиля ссылок === */
+
 /* Все ссылки: не посещённые и посещённые - выглядят одинаково */
 a:link,
 a:visited {

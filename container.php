@@ -145,4 +145,49 @@ $container->singleton('site_data', function ($c) {
     ];
 });
 
+// Временные заглушки для отсутствующих сервисов
+$container->singleton('timeline_service', function ($c) {
+    return new class {
+        public function getTimeline(string $lang): array { return []; }
+    };
+});
+
+$container->singleton('team_service', function ($c) {
+    return new class {
+        public function getTeamMembers(string $lang): array { return []; }
+    };
+});
+
+$container->singleton('telegram_service', function ($c) {
+    return new class {
+        public function getLatestPosts(string $channelId, int $limit): array { return []; }
+    };
+});
+
+// Сервис для подготовки данных страницы
+$container->singleton('page_data_service', function ($c) {
+    return new App\Application\PageDataService($c);
+});
+
+// ContentManager для работы с событиями и новостями
+$container->singleton('content_manager', function ($c) {
+    return new App\Application\ContentManager(
+        $c->get('events_repository'),
+        $c->get('news_repository')
+    );
+});
+
+// Сервисы панелей
+$container->singleton('sidebar_widget_factory', function ($c) {
+    return new App\Infrastructure\SidebarWidgetFactory($c);
+});
+
+$container->singleton('sidebar_manager', function ($c) {
+    $config = $c->get('config');
+    return new App\Application\SidebarManager(
+        $config['sidebars'] ?? [],
+        $c->get('sidebar_widget_factory')
+    );
+});
+
 return $container;

@@ -1,6 +1,7 @@
 <?php
-// src/Http/Controllers/HomeController.php
 declare(strict_types=1);
+
+// src/Http/Controllers/HomeController.php
 
 namespace App\Http\Controllers;
 
@@ -19,6 +20,7 @@ class HomeController extends AbstractController
         $lang_code = $siteData['lang_code'];
 
         $mainContentData = new MainContentData(translator: $translator, lang_code: $lang_code);
-        return $this->renderPageWithLayout('main_content.php', $mainContentData, $page, $lang);
+
+        return $this->renderPage('main_content.php', $mainContentData, $page, $lang);
     }
 }

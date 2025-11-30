@@ -1,6 +1,7 @@
 <?php
-// src/Http/Controllers/PrinciplesController.php
 declare(strict_types=1);
+
+// src/Http/Controllers/PrinciplesController.php
 
 namespace App\Http\Controllers;
 
@@ -16,6 +17,7 @@ class PrinciplesController extends AbstractController
     {
         $principles_service = $this->container->get('principles_service');
         $principlesData = new PagePrinciplesData(translator: $principles_service, lang_code: $lang);
-        return $this->renderPageWithLayout('page_principles.php', $principlesData, $page, $lang);
+
+        return $this->renderPage('page_principles.php', $principlesData, $page, $lang);
     }
 }

@@ -1,38 +1,69 @@
 <?php
-// src/Http/Controllers/AbstractController.php
 declare(strict_types=1);
+
+// src/Http/Controllers/AbstractController.php
 
 namespace App\Http\Controllers;
 
+use App\Infrastructure\ContainerInterface;
 use App\Http\ViewRenderer;
-use App\Infrastructure\SimpleContainer;
-use App\View\NavData;
-use App\View\SidebarLeftData;
-use App\View\SidebarRightData;
-use App\View\FooterData;
 use App\View\TemplateDataInterface;
 use Throwable;
 
 abstract class AbstractController implements ControllerInterface
 {
-    protected SimpleContainer $container;
-    protected ViewRenderer $viewRenderer; // Теперь с layout
+    protected ContainerInterface $container;
+    protected ViewRenderer $viewRenderer;
 
-    public function __construct(SimpleContainer $container)
+    public function __construct(ContainerInterface $container)
     {
         $this->container = $container;
-        // Создаем ViewRenderer с указанием layout.php
         $this->viewRenderer = new ViewRenderer(__DIR__ . '/../../../includes/', 'layout.php');
     }
 
+    protected function renderPage(
+        string $templateName,
+        TemplateDataInterface $pageData,
+        string $page,
+        string $lang
+    ): string {
+        $pageDataService = $this->container->get('page_data_service');
+        $preparedData = $pageDataService->prepareLayoutData($page, $lang);
+
+        $siteData = $preparedData['site_data'];
+        $navData = $preparedData['nav_data'];
+        $footerData = $preparedData['footer_data'];
+        $leftSidebarContent = $preparedData['left_sidebar_content'];
+        $rightSidebarContent = $preparedData['right_sidebar_content'];
+
+        // Рендерим компоненты и формируем layout data
+        $layoutData = [
+            'lang_code' => $siteData['lang_code'],
+            'site_title' => $siteData['site_title'],
+            'page_title' => $siteData['page_title'],
+            'description' => $siteData['description'],
+            'version' => $siteData['version'],
+            'page' => $page,
+            'nav_html' => $this->viewRenderer->renderWithoutLayout('nav.php', $navData),
+            'left_sidebar_html' => $this->renderSidebar($leftSidebarContent, 'left'),
+            'right_sidebar_html' => $this->renderSidebar($rightSidebarContent, 'right'),
+            'footer_html' => $this->viewRenderer->renderWithoutLayout('footer.php', $footerData),
+            'has_left_sidebar' => !empty($leftSidebarContent),
+            'has_right_sidebar' => !empty($rightSidebarContent),
+        ];
+
+        return $this->viewRenderer->render($templateName, $pageData, $layoutData);
+    }
+
+    private function renderSidebar(?array $content, string $position): string
+    {
+        return $content
+            ? $this->viewRenderer->renderWithoutLayout('sidebar.php', new \App\View\SidebarData($content, $position))
+            : '';
+    }
+
     /**
-     * Общий метод для рендеринга страницы с layout.
-     * @param string $templateName Имя шаблона контентной части (например, 'main_content.php')
-     * @param TemplateDataInterface $pageData Данные для контентного шаблона
-     * @param string $page Текущая страница (для навигации)
-     * @param string $lang Язык
-     * @return string Полный HTML
-     * @throws Throwable
+     * Устаревший метод для обратной совместимости
      */
     protected function renderPageWithLayout(
         string $templateName,
@@ -40,48 +71,6 @@ abstract class AbstractController implements ControllerInterface
         string $page,
         string $lang
     ): string {
-        // Получаем общие данные сайта
-        $siteData = $this->container->get('site_data');
-        $translator = $siteData['translator'];
-        $lang_code = $siteData['lang_code'];
-        $upcoming_events = $siteData['events_data'];
-        $news_items = $siteData['news_data'];
-        $site_title = $siteData['site_title'];
-        $page_title = $siteData['page_title'];
-        $description = $siteData['description'];
-        $version = $siteData['version'];
-
-        // Подготовка данных для компонентов
-        $navData = new NavData(current_lang: $lang_code, current_page: $page, translator: $translator);
-        $sidebarLeftData = new SidebarLeftData(translator: $translator, upcoming_events: $upcoming_events, lang_code: $lang_code);
-        $sidebarRightData = new SidebarRightData(translator: $translator, news_items: $news_items, lang_code: $lang_code);
-        $footerData = new FooterData(site_title: $site_title, translator: $translator, lang_code: $lang_code);
-
-        // Рендерим компоненты *вручную* через $this->viewRenderer
-        // Обрати внимание: для компонентов мы используем layout = null или пустой шаблон.
-        // Нам нужен только их HTML, без обертки layout.php
-        $navHtml = $this->viewRenderer->renderWithoutLayout('nav.php', $navData);
-        $sidebarLeftHtml = $this->viewRenderer->renderWithoutLayout('sidebar_left.php', $sidebarLeftData);
-        $sidebarRightHtml = $this->viewRenderer->renderWithoutLayout('sidebar_right.php', $sidebarRightData);
-        $footerHtml = $this->viewRenderer->renderWithoutLayout('footer.php', $footerData);
-
-        // Подготовка данных для layout
-        $layoutData = [
-            'lang_code' => $lang_code,
-            'site_title' => $site_title,
-            'page_title' => $page_title,
-            'description' => $description,
-            'version' => $version,
-            'page' => $page, // Для ссылок переключения языка
-            // Передаём уже отрендеренные строки
-            'nav_html' => $navHtml,
-            'sidebar_left_html' => $sidebarLeftHtml,
-            'sidebar_right_html' => $sidebarRightHtml,
-            'footer_html' => $footerHtml,
-        ];
-
-        // Вызываем ViewRenderer, передав ему шаблон контента, его данные и данные для layout
-        // Главное: layout.php НЕ должен сам рендерить компоненты через ViewRenderer!
-        return $this->viewRenderer->render($templateName, $pageData, $layoutData);
+        return $this->renderPage($templateName, $pageData, $page, $lang);
     }
 }
