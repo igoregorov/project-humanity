@@ -16,8 +16,6 @@ $page = $layoutData['page'] ?? 'home';
 
 // Извлекаем готовые HTML строки для компонентов (старая система)
 $navHtml = $layoutData['nav_html'] ?? '';
-$sidebarLeftHtml = $layoutData['sidebar_left_html'] ?? '';
-$sidebarRightHtml = $layoutData['sidebar_right_html'] ?? '';
 $footerHtml = $layoutData['footer_html'] ?? '';
 
 // Новые переменные для системы сайдбаров
@@ -55,10 +53,6 @@ $has_right_sidebar = $layoutData['has_right_sidebar'] ?? false;
             <aside class="sidebar sidebar-left">
                 <?= $left_sidebar_html ?>
             </aside>
-        <?php elseif (!empty($sidebarLeftHtml)): ?>
-            <aside class="sidebar sidebar-left">
-                <?= $sidebarLeftHtml ?>
-            </aside>
         <?php endif; ?>
 
         <main class="main-content">
@@ -69,10 +63,6 @@ $has_right_sidebar = $layoutData['has_right_sidebar'] ?? false;
         <?php if ($has_right_sidebar && !empty($right_sidebar_html)): ?>
             <aside class="sidebar sidebar-right">
                 <?= $right_sidebar_html ?>
-            </aside>
-        <?php elseif (!empty($sidebarRightHtml)): ?>
-            <aside class="sidebar sidebar-right">
-                <?= $sidebarRightHtml ?>
             </aside>
         <?php endif; ?>
     </div>

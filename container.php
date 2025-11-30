@@ -164,25 +164,6 @@ $container->singleton('site_data', function ($c) {
     ];
 });
 
-// Временные заглушки для отсутствующих сервисов
-$container->singleton('timeline_service', function ($c) {
-    return new class {
-        public function getTimeline(string $lang): array { return []; }
-    };
-});
-
-$container->singleton('team_service', function ($c) {
-    return new class {
-        public function getTeamMembers(string $lang): array { return []; }
-    };
-});
-
-$container->singleton('telegram_service', function ($c) {
-    return new class {
-        public function getLatestPosts(string $channelId, int $limit): array { return []; }
-    };
-});
-
 // Сервис для подготовки данных страницы
 $container->singleton('page_data_service', function ($c) {
     return new App\Application\PageDataService($c);

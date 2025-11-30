@@ -61,16 +61,4 @@ abstract class AbstractController implements ControllerInterface
             ? $this->viewRenderer->renderWithoutLayout('sidebar.php', new \App\View\SidebarData($content, $position))
             : '';
     }
-
-    /**
-     * Устаревший метод для обратной совместимости
-     */
-    protected function renderPageWithLayout(
-        string $templateName,
-        TemplateDataInterface $pageData,
-        string $page,
-        string $lang
-    ): string {
-        return $this->renderPage($templateName, $pageData, $page, $lang);
-    }
 }
