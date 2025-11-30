@@ -1,0 +1,32 @@
+/* === Стили виджета социальных сетей === */
+.social-widget {
+    background: rgba(76, 201, 240, 0.02);
+    border: 1px solid rgba(76, 201, 240, 0.1);
+}
+
+.social-widget h3 {
+    color: var(--accent);
+}
+
+.social-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.social-link {
+    display: block;
+    padding: 0.8rem 1rem;
+    background: rgba(76, 201, 240, 0.05);
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.social-link:hover {
+    background: rgba(76, 201, 240, 0.1);
+    color: var(--accent);
+    transform: translateX(5px);
+}

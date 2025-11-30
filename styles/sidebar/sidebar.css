@@ -1,0 +1,29 @@
+/* === Общие стили для сайдбаров === */
+.sidebar {
+    flex: 0 0 var(--sidebar-width);
+    padding: 1rem;
+    font-size: 0.9em; /* Уменьшаем базовый размер шрифта */
+}
+
+.sidebar-left {
+    order: -1;
+    --sidebar-width: var(--sidebar-width-left);
+}
+
+.sidebar-right {
+    order: 1;
+    --sidebar-width: var(--sidebar-width-right);
+}
+
+/* Убираем рамки у сайдбаров, оставляем только у виджетов */
+.sidebar-left,
+.sidebar-right {
+    background: transparent;
+    border: none;
+}
+
+/* Стили когда панели скрыты */
+.layout.no-sidebar-left .sidebar-left,
+.layout.no-sidebar-right .sidebar-right {
+    display: none;
+}

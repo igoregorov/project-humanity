@@ -1,19 +1,20 @@
 <?php
-// src/Http/RequestHandler.php
 declare(strict_types=1);
+
+// src/Http/RequestHandler.php
 
 namespace App\Http;
 
+use App\Infrastructure\ContainerInterface;
 use App\Http\Controllers\ControllerInterface;
-use App\Infrastructure\SimpleContainer;
 use Throwable;
 
 class RequestHandler
 {
-    private SimpleContainer $container;
+    private ContainerInterface $container;
     private Router $router;
 
-    public function __construct(SimpleContainer $container)
+    public function __construct(ContainerInterface $container)
     {
         $this->container = $container;
         $this->router = $container->get('router');

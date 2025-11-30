@@ -1,6 +1,7 @@
 <?php
-// src/Http/Controllers/AboutController.php
 declare(strict_types=1);
+
+// src/Http/Controllers/AboutController.php
 
 namespace App\Http\Controllers;
 
@@ -14,13 +15,9 @@ class AboutController extends AbstractController
      */
     public function handle(string $page, string $lang): string
     {
-        // Получаем специфичный сервис для 'about'
         $about_service = $this->container->get('about_service');
-
-        // Подготовка данных для шаблона 'page_about.php'
         $aboutData = new PageAboutData(translator: $about_service, lang_code: $lang);
 
-        // Используем общий метод для рендеринга с layout
-        return $this->renderPageWithLayout('page_about.php', $aboutData, $page, $lang);
+        return $this->renderPage('page_about.php', $aboutData, $page, $lang);
     }
 }

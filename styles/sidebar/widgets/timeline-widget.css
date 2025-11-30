@@ -1,0 +1,56 @@
+/* === Стили виджета таймлайна === */
+.timeline-widget {
+    background: rgba(76, 201, 240, 0.02);
+    border: 1px solid rgba(76, 201, 240, 0.1);
+}
+
+.timeline-widget h3 {
+    color: var(--accent);
+}
+
+.timeline {
+    position: relative;
+    padding-left: 1.5rem;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--accent);
+    opacity: 0.3;
+}
+
+.timeline-event {
+    position: relative;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: rgba(76, 201, 240, 0.03);
+    border-radius: 4px;
+}
+
+.timeline-event::before {
+    content: '';
+    position: absolute;
+    left: -1.65rem;
+    top: 1.5rem;
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+}
+
+.timeline-year {
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.timeline-description {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    line-height: 1.4;
+}

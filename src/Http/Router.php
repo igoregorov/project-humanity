@@ -1,24 +1,19 @@
 <?php
-// src/Http/Router.php
-
 declare(strict_types=1);
+
+// src/Http/Router.php
 
 namespace App\Http;
 
-use App\Infrastructure\SimpleContainer;
-use App\Http\Controllers\ControllerInterface; // Нужно будет создать
-use Throwable;
+use App\Infrastructure\ContainerInterface;
+use App\Http\Controllers\ControllerInterface;
 
-/**
- * Класс Router отвечает за сопоставление входящих запросов с контроллерами.
- * Он использует контейнер для получения экземпляров контроллеров.
- */
 class Router
 {
-    private array $routes = []; // Структура: ['page_name' => ['controller_class' => '...', 'action' => '...']]
-    private SimpleContainer $container;
+    private array $routes = [];
+    private ContainerInterface $container;
 
-    public function __construct(SimpleContainer $container)
+    public function __construct(ContainerInterface $container)
     {
         $this->container = $container;
     }

@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
 
-// src/Repositories/JsonNewsRepository.php
-
 namespace App\Infrastructure;
 
 use App\Domain\NewsRepositoryInterface;
@@ -27,6 +25,30 @@ class JsonNewsRepository implements NewsRepositoryInterface
             return [];
         }
 
-        return array_filter($data, fn($item) => is_array($item) && isset($item['date']));
+        return $data['news'] ?? [];
+    }
+
+    /**
+     * Получает метаданные виджета новостей
+     */
+    public function getWidgetData(string $lang): array
+    {
+        $lang = in_array($lang, ['ru', 'en'], true) ? $lang : 'ru';
+        $file = $this->newsPath . "/$lang.json";
+
+        if (!file_exists($file)) {
+            return [
+                'widget_title' => 'Последние новости',
+                'no_news' => 'Пока нет новостей'
+            ];
+        }
+
+        $json = file_get_contents($file);
+        $data = json_decode($json, true);
+
+        return [
+            'widget_title' => $data['widget_title'] ?? 'Последние новости',
+            'no_news' => $data['no_news'] ?? 'Пока нет новостей'
+        ];
     }
 }

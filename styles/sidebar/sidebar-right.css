@@ -1,0 +1,4 @@
+/* === Стили правой панели === */
+.sidebar-right {
+    background: linear-gradient(135deg, transparent 0%, rgba(76, 201, 240, 0.01) 100%);
+}

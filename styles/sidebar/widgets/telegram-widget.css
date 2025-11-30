@@ -1,0 +1,47 @@
+/* === Стили виджета Telegram === */
+.telegram-widget {
+    background: rgba(0, 136, 204, 0.03);
+    border: 1px solid rgba(0, 136, 204, 0.1);
+}
+
+.telegram-widget h3 {
+    color: #0088cc;
+}
+
+.telegram-posts {
+    margin-bottom: 1rem;
+}
+
+.telegram-post {
+    padding: 1rem;
+    background: rgba(0, 136, 204, 0.05);
+    border-radius: 8px;
+    margin-bottom: 0.8rem;
+    border-left: 3px solid #0088cc;
+}
+
+.telegram-post:last-child {
+    margin-bottom: 0;
+}
+
+.post-text {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin: 0;
+}
+
+.telegram-link {
+    display: block;
+    padding: 0.8rem 1rem;
+    background: #0088cc;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.telegram-link:hover {
+    background: #006699;
+    transform: translateY(-2px);
+}
