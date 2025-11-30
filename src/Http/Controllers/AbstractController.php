@@ -13,7 +13,7 @@ use App\View\FooterData;
 use App\View\TemplateDataInterface;
 use Throwable;
 
-abstract class AbstractController
+abstract class AbstractController implements ControllerInterface
 {
     protected SimpleContainer $container;
     protected ViewRenderer $viewRenderer; // Теперь с layout
