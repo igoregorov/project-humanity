@@ -30,5 +30,16 @@
     "made_with": "Сделано с верой в будущее.",
     "nav_home": "Главная",
     "nav_about": "О Проекте",
-    "nav_principles": "Принципы"
+    "nav_principles": "Принципы",
+    "nav_auth": "Аккаунт",
+    "login": "Вход",
+    "register": "Регистрация",
+    "logout": "Выход",
+    "profile": "Профиль",
+    "username": "Имя пользователя",
+    "email": "Email",
+    "password": "Пароль",
+    "password_confirm": "Подтверждение пароля",
+    "captcha": "Код проверки",
+    "welcome_user": "Добро пожаловать, %s!"
 }

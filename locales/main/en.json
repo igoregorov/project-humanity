@@ -30,5 +30,16 @@
     "made_with": "Made with faith in the future.",
     "nav_home": "Home",
     "nav_about": "About",
-    "nav_principles": "Principles"
+    "nav_principles": "Principles",
+    "nav_auth": "Account",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "profile": "Profile",
+    "username": "Username",
+    "email": "Email",
+    "password": "Password",
+    "password_confirm": "Confirm Password",
+    "captcha": "Verification Code",
+    "welcome_user": "Welcome, %s!"
 }

@@ -1,6 +1,5 @@
 <?php
 declare(strict_types=1);
-
 // src/Application/PageDataService.php
 
 namespace App\Application;
@@ -19,6 +18,7 @@ class PageDataService
     {
         $siteData = $this->container->get('site_data');
         $sidebarManager = $this->container->get('sidebar_manager');
+        $navService = $this->container->get('nav_service');
 
         $translator = $siteData['translator'];
         $lang_code = $siteData['lang_code'];
@@ -26,7 +26,8 @@ class PageDataService
         $navData = new NavData(
             current_lang: $lang_code,
             current_page: $page,
-            translator: $translator
+            translator: $translator,
+            nav_service: $navService
         );
 
         $footerData = new FooterData(

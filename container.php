@@ -23,21 +23,28 @@ $container->set('config', $config);
 
 // Сервис подключения к БД
 $container->singleton('pdo', function ($c) {
-    $config = $c->get('config');
-    $dbConfig = $config['database'];
+    static $pdo = null;
 
-    $dsn = "mysql:host={$dbConfig['host']};port={$dbConfig['port']};dbname={$dbConfig['dbname']};charset=utf8mb4";
-    try {
-        $pdo = new PDO($dsn, $dbConfig['user'], $dbConfig['password'], [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
-        return $pdo;
-    } catch (Exception $e) {
-        // Бросаем исключение вместо die()
-        // Это исключение будет "всплывать" до места его перехвата
-        throw new RuntimeException("Ошибка подключения к БД: " . $e->getMessage(), 0, $e); // Код 0, предыдущее исключение PDOException
+    if ($pdo === null) {
+        $config = $c->get('config');
+        $dbConfig = $config['database'];
+
+        $dsn = "mysql:host={$dbConfig['host']};port={$dbConfig['port']};dbname={$dbConfig['dbname']};charset=utf8mb4";
+        try {
+            $pdo = new PDO($dsn, $dbConfig['user'], $dbConfig['password'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_PERSISTENT => false, // Не использовать постоянные соединения
+            ]);
+            return $pdo;
+        } catch (Exception $e) {
+            // Логируем ошибку, но не прерываем выполнение
+            error_log("Ошибка подключения к БД: " . $e->getMessage());
+            throw new RuntimeException("Ошибка подключения к БД: " . $e->getMessage(), 0, $e);
+        }
     }
+
+    return $pdo;
 });
 
 // Сервисы для локализации
@@ -47,6 +54,18 @@ $container->singleton('language_service', function ($c) {
         $config['allowed_languages'],
         $config['languages']
     );
+});
+
+// Менеджер подключения к БД
+$container->singleton('database.connection_manager', function ($c) {
+    $config = $c->get('config');
+    return new App\Infrastructure\Database\DatabaseConnectionManager($config['database']);
+});
+
+// PDO соединение (ленивая инициализация)
+$container->singleton('pdo', function ($c) {
+    $connectionManager = $c->get('database.connection_manager');
+    return $connectionManager->getConnection();
 });
 
 // Репозитории
@@ -143,6 +162,7 @@ $container->singleton('router', function ($c) {
     $router->addRoute('home', App\Http\Controllers\HomeController::class);
     $router->addRoute('about', App\Http\Controllers\AboutController::class);
     $router->addRoute('principles', App\Http\Controllers\PrinciplesController::class);
+    $router->addRoute('auth', App\Http\Controllers\AuthController::class);
     // Пример добавления новой страницы:
     // $router->addRoute('contacts', App\Http\Controllers\ContactsController::class);
 
@@ -188,6 +208,53 @@ $container->singleton('sidebar_manager', function ($c) {
         $config['sidebars'] ?? [],
         $c->get('sidebar_widget_factory')
     );
+});
+
+// Репозиторий пользователей
+$container->singleton('user_repository', function ($c) {
+    $config = $c->get('config');
+    $dbConfig = $config['database'];
+
+    // Если БД активна, пробуем использовать её
+    if ($dbConfig['is_active']) {
+        try {
+            $pdo = $c->get('pdo');
+            return new App\Infrastructure\Auth\DatabaseUserRepository($pdo);
+        } catch (RuntimeException $e) {
+            // Если БД недоступна, используем файловое хранилище
+            error_log("БД недоступна, используется файловое хранилище: " . $e->getMessage());
+        }
+    }
+
+    // Если БД неактивна или недоступна, используем файловое хранилище
+    return new App\Infrastructure\Auth\FileBasedUserRepository();
+});
+
+// Сервис аутентификации
+$container->singleton('auth_service', function ($c) {
+    $userRepository = $c->get('user_repository');
+    return new App\Infrastructure\Auth\SessionAuthService($userRepository);
+});
+
+// Сервис CAPTCHA
+$container->singleton('captcha_service', function ($c) {
+    return new App\Infrastructure\Security\CaptchaService();
+});
+
+// Контроллер аутентификации
+$container->singleton(App\Http\Controllers\AuthController::class, function ($c) {
+    return new App\Http\Controllers\AuthController($c);
+});
+
+// Сервис навигации
+$container->singleton('nav_service', function ($c) {
+    return new App\Application\NavService($c);
+});
+
+// Health check для БД
+$container->singleton('database.health_check', function ($c) {
+    $connectionManager = $c->get('database.connection_manager');
+    return new App\Infrastructure\Database\DatabaseHealthCheck($connectionManager);
 });
 
 return $container;

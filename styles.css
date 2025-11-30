@@ -4,6 +4,7 @@
 @import './styles/variables.css';
 @import './styles/layout.css';
 @import './styles/navigation.css';
+@import './styles/auth.css';
 
 /* Стили сайдбаров */
 @import './styles/sidebar/sidebar.css';
