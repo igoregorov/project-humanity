@@ -1,15 +1,14 @@
 <?php
 // includes/auth_form.php
 declare(strict_types=1);
-/** @var AuthData $data */
 
+/** @var AuthData $data */
 use App\View\AuthData;
 
 $action = $data->action;
 $errors = $data->errors;
 $oldInput = $data->oldInput;
 ?>
-
 <section class="auth-section">
     <h2><?= $action === 'login' ? 'Вход' : 'Регистрация' ?></h2>
 
@@ -18,6 +17,8 @@ $oldInput = $data->oldInput;
     <?php endif; ?>
 
     <form method="POST" action="?page=auth&action=do_<?= $action ?>&lang=<?= $data->lang_code ?>" class="auth-form">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($data->csrf_token) ?>">
+
         <div class="form-group">
             <label for="username">Имя пользователя:</label>
             <input type="text" id="username" name="username"

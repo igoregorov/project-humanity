@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
 // src/Http/Controllers/AuthController.php
-
 namespace App\Http\Controllers;
 
 use App\Domain\Auth\AuthServiceInterface;
@@ -14,13 +13,14 @@ use Throwable;
 
 class AuthController extends AbstractController
 {
+    private const CSRF_TOKEN_LIFETIME = 1800; // 30 минут — с запасом на раздумья
+
     /**
      * @throws Throwable
      */
     public function handle(string $page, string $lang): string
     {
         $action = $_GET['action'] ?? 'login';
-
         return match ($action) {
             'login' => $this->showLogin($page, $lang),
             'register' => $this->showRegister($page, $lang),
@@ -35,7 +35,6 @@ class AuthController extends AbstractController
     private function showLogin(string $page, string $lang): string
     {
         $authService = $this->container->get('auth_service');
-
         if ($authService->isLoggedIn()) {
             header("Location: ?page=auth&action=profile&lang=$lang");
             exit;
@@ -46,16 +45,15 @@ class AuthController extends AbstractController
             lang_code: $lang,
             action: 'login',
             errors: [],
-            oldInput: []
+            oldInput: [],
+            csrf_token: $this->getCsrfToken()
         );
-
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
 
     private function showRegister(string $page, string $lang): string
     {
         $authService = $this->container->get('auth_service');
-
         if ($authService->isLoggedIn()) {
             header("Location: ?page=auth&action=profile&lang=$lang");
             exit;
@@ -66,16 +64,15 @@ class AuthController extends AbstractController
             lang_code: $lang,
             action: 'register',
             errors: [],
-            oldInput: []
+            oldInput: [],
+            csrf_token: $this->getCsrfToken()
         );
-
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
 
     private function showProfile(string $page, string $lang): string
     {
         $authService = $this->container->get('auth_service');
-
         if (!$authService->isLoggedIn()) {
             header("Location: ?page=auth&action=login&lang=$lang");
             exit;
@@ -90,7 +87,6 @@ class AuthController extends AbstractController
             errors: [],
             oldInput: []
         );
-
         return $this->renderPage('auth_profile.php', $authData, $page, $lang);
     }
 
@@ -98,21 +94,32 @@ class AuthController extends AbstractController
     {
         $authService = $this->container->get('auth_service');
         $captchaService = $this->container->get('captcha_service');
-
         $errors = [];
         $oldInput = [
             'username' => $_POST['username'] ?? ''
         ];
 
+        // --- Проверка CSRF ---
+        if (!$this->validateCsrfToken($_POST['csrf_token'] ?? '')) {
+            $errors['general'] = 'Сессия устарела. Пожалуйста, обновите страницу и попробуйте снова.';
+            $authData = new AuthData(
+                translator: $this->container->get('localized_content'),
+                lang_code: $lang,
+                action: 'login',
+                errors: $errors,
+                oldInput: $oldInput,
+                csrf_token: $this->getCsrfToken(true) // пересоздаём токен
+            );
+            return $this->renderPage('auth_form.php', $authData, $page, $lang);
+        }
+
         // Валидация
         if (empty($_POST['username'])) {
             $errors['username'] = 'Введите имя пользователя';
         }
-
         if (empty($_POST['password'])) {
             $errors['password'] = 'Введите пароль';
         }
-
         if (empty($_POST['captcha'])) {
             $errors['captcha'] = 'Введите код с картинки';
         } elseif (!$captchaService->validate($_POST['captcha'])) {
@@ -122,7 +129,6 @@ class AuthController extends AbstractController
         if (empty($errors)) {
             try {
                 $user = $authService->login($_POST['username'], $_POST['password']);
-
                 if ($user) {
                     header("Location: ?page=auth&action=profile&lang=$lang");
                     exit;
@@ -139,9 +145,9 @@ class AuthController extends AbstractController
             lang_code: $lang,
             action: 'login',
             errors: $errors,
-            oldInput: $oldInput
+            oldInput: $oldInput,
+            csrf_token: $this->getCsrfToken()
         );
-
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
 
@@ -149,34 +155,43 @@ class AuthController extends AbstractController
     {
         $authService = $this->container->get('auth_service');
         $captchaService = $this->container->get('captcha_service');
-
         $errors = [];
         $oldInput = [
             'username' => $_POST['username'] ?? '',
             'email' => $_POST['email'] ?? ''
         ];
 
+        // --- Проверка CSRF ---
+        if (!$this->validateCsrfToken($_POST['csrf_token'] ?? '')) {
+            $errors['general'] = 'Сессия устарела. Пожалуйста, обновите страницу и попробуйте снова.';
+            $authData = new AuthData(
+                translator: $this->container->get('localized_content'),
+                lang_code: $lang,
+                action: 'register',
+                errors: $errors,
+                oldInput: $oldInput,
+                csrf_token: $this->getCsrfToken(true)
+            );
+            return $this->renderPage('auth_form.php', $authData, $page, $lang);
+        }
+
         // Валидация
         if (empty($_POST['username'])) {
             $errors['username'] = 'Введите имя пользователя';
         }
-
         if (empty($_POST['email'])) {
             $errors['email'] = 'Введите email';
         } elseif (!filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
             $errors['email'] = 'Некорректный email адрес';
         }
-
         if (empty($_POST['password'])) {
             $errors['password'] = 'Введите пароль';
         } elseif (strlen($_POST['password']) < 8) {
             $errors['password'] = 'Пароль должен быть не менее 8 символов';
         }
-
         if ($_POST['password'] !== ($_POST['password_confirm'] ?? '')) {
             $errors['password_confirm'] = 'Пароли не совпадают';
         }
-
         if (empty($_POST['captcha'])) {
             $errors['captcha'] = 'Введите код с картинки';
         } elseif (!$captchaService->validate($_POST['captcha'])) {
@@ -190,13 +205,10 @@ class AuthController extends AbstractController
                     $_POST['email'],
                     $_POST['password']
                 );
-
                 // Автоматический логин после регистрации
                 $authService->login($_POST['username'], $_POST['password']);
-
                 header("Location: ?page=auth&action=profile&lang=$lang");
                 exit;
-
             } catch (InvalidArgumentException $e) {
                 $errors['general'] = $e->getMessage();
             }
@@ -207,9 +219,9 @@ class AuthController extends AbstractController
             lang_code: $lang,
             action: 'register',
             errors: $errors,
-            oldInput: $oldInput
+            oldInput: $oldInput,
+            csrf_token: $this->getCsrfToken()
         );
-
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
 
@@ -217,8 +229,35 @@ class AuthController extends AbstractController
     {
         $authService = $this->container->get('auth_service');
         $authService->logout();
-
         header("Location: ?page=auth&action=login&lang=$lang");
         exit;
+    }
+
+    // --- CSRF: генерация и валидация ---
+
+    private function getCsrfToken(bool $forceNew = false): string
+    {
+        if (
+            $forceNew
+            || empty($_SESSION['csrf_token'])
+            || empty($_SESSION['csrf_token_time'])
+            || (time() - $_SESSION['csrf_token_time']) > self::CSRF_TOKEN_LIFETIME
+        ) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            $_SESSION['csrf_token_time'] = time();
+        }
+        return $_SESSION['csrf_token'];
+    }
+
+    private function validateCsrfToken(string $token): bool
+    {
+        if (empty($token) || empty($_SESSION['csrf_token'])) {
+            return false;
+        }
+        if ((time() - ($_SESSION['csrf_token_time'] ?? 0)) > self::CSRF_TOKEN_LIFETIME) {
+            return false;
+        }
+        // hash_equals — защита от timing-атак
+        return hash_equals($_SESSION['csrf_token'], $token);
     }
 }
