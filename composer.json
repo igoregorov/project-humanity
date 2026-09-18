@@ -1,13 +1,17 @@
 {
-  "autoload": {
-    "psr-4": {
-      "App\\": "src/"
+    "name": "projecthumanity/app",
+    "description": "site for road to the fun future",
+    "license": "proprietary",
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        },
+        "files": [
+            "src/Http/functions.php"
+        ]
     },
-    "files": [
-      "src/Http/functions.php"
-    ]
-  },
-  "require": {
-    "ext-pdo": "*"
-  }
+    "require": {
+        "ext-pdo": "*",
+        "ext-gd": "*"
+    }
 }

@@ -1,0 +1,283 @@
+/* styles/auth.css */
+
+/* Формы аутентификации */
+.auth-section {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.auth-form {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+}
+
+.auth-form h2 {
+    color: var(--accent);
+    text-align: center;
+    margin-bottom: 2rem;
+    font-size: 1.8rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(76, 201, 240, 0.2);
+}
+
+.form-group input.error {
+    border-color: #e74c3c;
+    box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
+}
+
+.field-error {
+    color: #e74c3c;
+    font-size: 0.875rem;
+    display: block;
+    margin-top: 0.25rem;
+    font-family: 'Courier New', monospace;
+}
+
+.error-message {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    font-family: 'Courier New', monospace;
+}
+
+.captcha-container {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+
+.captcha-container input {
+    flex: 1;
+}
+
+.captcha-container img {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.5rem;
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    padding: 0.75rem 2rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s ease;
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.btn-primary:hover {
+    background: rgba(76, 201, 240, 0.8);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(76, 201, 240, 0.3);
+}
+
+.btn-secondary {
+    background: transparent;
+    color: var(--accent);
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-block;
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+    background: rgba(76, 201, 240, 0.1);
+    transform: translateY(-1px);
+}
+
+.auth-links {
+    margin-top: 1.5rem;
+    text-align: center;
+    color: var(--text);
+    opacity: 0.8;
+}
+
+.auth-links a {
+    color: var(--accent);
+    text-decoration: none;
+    transition: opacity 0.3s ease;
+}
+
+.auth-links a:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
+/* Профиль */
+.profile-section {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.profile-section h2 {
+    color: var(--accent);
+    text-align: center;
+    margin-bottom: 2rem;
+    font-size: 2rem;
+}
+
+.profile-info {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.profile-field {
+    display: flex;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(76, 201, 240, 0.2);
+    align-items: center;
+}
+
+.profile-field:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.profile-field label {
+    font-weight: bold;
+    width: 200px;
+    color: var(--accent);
+    font-family: 'Courier New', monospace;
+    flex-shrink: 0;
+}
+
+.profile-field span {
+    flex: 1;
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+}
+
+.profile-actions {
+    text-align: center;
+    margin-top: 2rem;
+}
+
+/* Успешные сообщения */
+.success-message {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(46, 204, 113, 0.3);
+    font-family: 'Courier New', monospace;
+}
+
+/* Адаптивность для мобильных */
+@media (max-width: 768px) {
+    .auth-section {
+        padding: 1rem;
+    }
+
+    .auth-form {
+        padding: 1.5rem;
+    }
+
+    .profile-section {
+        padding: 1rem;
+    }
+
+    .profile-info {
+        padding: 1.5rem;
+    }
+
+    .profile-field {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .profile-field label {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+
+    .captcha-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .captcha-container img {
+        align-self: center;
+        margin-top: 0.5rem;
+    }
+}
+
+/* Анимации для плавного появления */
+.auth-section {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Стили для состояний загрузки */
+.btn-primary:disabled {
+    background: rgba(76, 201, 240, 0.5);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-primary:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}

@@ -10,15 +10,18 @@ class ConfigLoader
     private string $envLocalPath;
     private string $envProductionPath;
     private string $languagesPath;
+    private string $settingsPath;
 
     public function __construct(
         string $envLocalPath = './.env.local',
         string $envProductionPath = './../config/.env.production',
-        string $languagesPath = './config/languages.json'
+        string $languagesPath = './config/languages.json',
+        string $settingsPath = './config/.settings.config'
     ) {
         $this->envLocalPath = $envLocalPath;
         $this->envProductionPath = $envProductionPath;
         $this->languagesPath = $languagesPath;
+        $this->settingsPath = $settingsPath;
     }
 
     public function load(): array
@@ -34,8 +37,11 @@ class ConfigLoader
         // 3. Загружаем список поддерживаемых языков
         $languagesData = $this->loadLanguagesData($this->languagesPath);
 
-        // 4. Собираем конфигурацию
-        return $this->buildConfig($environment, $languagesData);
+        // 4. Загружаем настройки приложения
+        $settingsData = $this->loadSettingsData($this->settingsPath);
+
+        // 5. Собираем конфигурацию
+        return $this->buildConfig($environment, $languagesData, $settingsData);
     }
 
     private function loadLanguagesData(string $path): array
@@ -48,6 +54,54 @@ class ConfigLoader
             throw new RuntimeException("Неверный формат файла языков: $path");
         }
         return $languagesData;
+    }
+
+    private function loadSettingsData(string $path): array
+    {
+        $defaultSettings = [
+            'db_is_active' => true,
+            'feature_auth' => true,
+            'feature_comments' => false
+        ];
+
+        if (!file_exists($path)) {
+            error_log("Файл настроек не найден: $path. Используются настройки по умолчанию.");
+            return $defaultSettings;
+        }
+
+        $settingsContent = file_get_contents($path);
+        $settings = [];
+
+        // Парсим INI-подобный формат
+        $lines = explode("\n", $settingsContent);
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            // Пропускаем комментарии и пустые строки
+            if (empty($line) || str_starts_with($line, ';')) {
+                continue;
+            }
+
+            // Разбираем ключ=значение
+            if (str_contains($line, '=')) {
+                [$key, $value] = explode('=', $line, 2);
+                $key = trim($key);
+                $value = trim($value);
+
+                // Преобразуем булевы значения
+                if ($value === 'true') {
+                    $value = true;
+                } elseif ($value === 'false') {
+                    $value = false;
+                } elseif (is_numeric($value)) {
+                    $value = (int) $value;
+                }
+
+                $settings[$key] = $value;
+            }
+        }
+
+        return array_merge($defaultSettings, $settings);
     }
 
     private function sidebarConfig(): array
@@ -88,7 +142,7 @@ class ConfigLoader
         ];
     }
 
-    private function buildConfig(string $environment, array $languagesData): array
+    private function buildConfig(string $environment, array $languagesData, array $settingsData): array
     {
         $appDebug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
@@ -107,6 +161,7 @@ class ConfigLoader
                 'dbname' => $_ENV['DB_NAME'] ?? '',
                 'user' => $_ENV['DB_USER'] ?? '',
                 'password' => $_ENV['DB_PASS'] ?? '',
+                'is_active' => $settingsData['DB_IS_ACTIVE'] ?? true
             ],
             'app' => [
                 'debug' => $appDebug,
@@ -125,6 +180,7 @@ class ConfigLoader
                 'allowed_languages' => array_keys($languagesData),
                 'languages' => $languagesData,
                 'storage_driver' => $_ENV['STORAGE_DRIVER'] ?? 'json',
+                'settings' => $settingsData
             ],
             'sidebars' => $this->sidebarConfig(),
             'version' => $_ENV['SITE_VERSION'] ?? '1.0'
