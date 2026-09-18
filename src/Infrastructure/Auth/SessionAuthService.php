@@ -55,7 +55,7 @@ class SessionAuthService implements AuthServiceInterface
             $this->hashPassword($password),
             'user',
             true,
-            new DateTimeImmutable(),
+            new \DateTimeImmutable(),
             null,
             null
         );

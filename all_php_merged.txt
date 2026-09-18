@@ -1,0 +1,3987 @@
+
+=== Файл: ./app/bootstrap.php ===
+<?php
+// app/bootstrap.php
+declare(strict_types=1);
+
+// --- Загрузка зависимостей ---
+use function App\Http\sendCleanErrorPage;
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+// --- Безопасность среды ---
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0'); // Всегда 0 в продакшене
+    ini_set('log_errors', '1');
+
+    // Заголовки безопасности
+    header("Content-Type: text/html; charset=UTF-8");
+    header("X-Content-Type-Options: nosniff");
+    header("X-Frame-Options: DENY");
+    header("X-XSS-Protection: 1; mode=block");
+    header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';");
+    header("Referrer-Policy: strict-origin-when-cross-origin");
+}
+
+// --- Инициализация сессии ---
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'domain' => '',
+        'secure' => isset($_SERVER['HTTPS']),
+        'httponly' => true,
+        'samesite' => 'Strict'
+    ]);
+    session_start();
+    session_regenerate_id(true);
+}
+
+set_error_handler(/**
+ * @throws ErrorException
+ */ function ($severity, $message, $file, $line) {
+    error_log("PHP Error caught by set_error_handler: $severity - $message in $file:$line");
+    if (!(error_reporting() & $severity)) {
+        return false;
+    }
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
+set_exception_handler(function (Throwable $e) {
+
+    error_log("Uncaught Exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine() . "\n" . $e->getTraceAsString());
+
+    sendCleanErrorPage($e->getMessage(), $e->getFile(), (string) $e->getLine(), $e->getTraceAsString(), true);
+});
+
+$container = require_once __DIR__ . '/../container.php';
+
+// --- Валидация контейнера ---
+if (!isset($container)) {
+    throw new RuntimeException('Application configuration error: Container is not set.');
+}
+
+// --- Возврат контейнера для использования в index.php ---
+return $container; // Вот этот return!
+=== Файл: ./captcha.php ===
+<?php
+// captcha.php
+declare(strict_types=1);
+
+require_once __DIR__ . '/app/bootstrap.php';
+
+$container = require_once __DIR__ . '/container.php';
+$captchaService = $container->get('captcha_service');
+
+$code = $captchaService->generateCode();
+$captchaService->generateImage($code);
+=== Файл: ./check_db_status.php ===
+<?php
+// check_db_status.php
+declare(strict_types=1);
+
+$container = require_once __DIR__ . '/app/bootstrap.php';
+
+try {
+    $healthCheck = $container->get('database.health_check');
+    $config = $container->get('config');
+
+    echo "=== Статус базы данных ===\n";
+    echo "Настройка DB_IS_ACTIVE: " . ($config['database']['is_active'] ? 'true' : 'false') . "\n";
+    echo "Активна в системе: " . ($healthCheck->isActive() ? 'true' : 'false') . "\n";
+
+    if ($healthCheck->isActive()) {
+        echo "Состояние подключения: " . ($healthCheck->isHealthy() ? 'Подключено' : 'Не подключено') . "\n";
+
+        if (!$healthCheck->isHealthy()) {
+            echo "Ошибка: " . $healthCheck->getLastError() . "\n";
+            echo "Используется файловое хранилище\n";
+        }
+    } else {
+        echo "База данных отключена в настройках\n";
+        echo "Используется файловое хранилище\n";
+    }
+
+} catch (Exception $e) {
+    echo "Ошибка при проверке статуса: " . $e->getMessage() . "\n";
+}
+=== Файл: ./config.php ===
+<?php
+declare(strict_types=1);
+
+// config.php
+
+require_once __DIR__ . '/src/Infrastructure/ConfigLoader.php';
+require_once __DIR__ . '/src/Infrastructure/EnvironmentDetector.php';
+// require_once 'vendor/autoload.php'; // Если используешь Composer, это нужно. Если нет - autoload для своих классов.
+
+use App\Infrastructure\ConfigLoader;
+
+$configLoader = new ConfigLoader();
+$config = $configLoader->load();
+
+return $config;
+=== Файл: ./container.php ===
+<?php
+declare(strict_types=1);
+// container.php
+require_once 'vendor/autoload.php';
+
+use App\Application\LocalizedContentService;
+use App\Application\EventsService;
+use App\Application\NewsService;
+use App\Infrastructure\RepositoryFactory;
+use App\Infrastructure\SimpleContainer;
+use App\Services\LanguageService;
+use App\Http\Router;
+
+
+// Загружаем конфигурацию
+$config = require_once 'config.php';
+
+// Создаём контейнер
+$container = new SimpleContainer();
+
+// Регистрируем конфигурацию как СЕРВИС в контейнере
+$container->set('config', $config);
+
+// Сервис подключения к БД
+$container->singleton('pdo', function ($c) {
+    static $pdo = null;
+
+    if ($pdo === null) {
+        $config = $c->get('config');
+        $dbConfig = $config['database'];
+
+        $dsn = "mysql:host={$dbConfig['host']};port={$dbConfig['port']};dbname={$dbConfig['dbname']};charset=utf8mb4";
+        try {
+            $pdo = new PDO($dsn, $dbConfig['user'], $dbConfig['password'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_PERSISTENT => false, // Не использовать постоянные соединения
+            ]);
+            return $pdo;
+        } catch (Exception $e) {
+            // Логируем ошибку, но не прерываем выполнение
+            error_log("Ошибка подключения к БД: " . $e->getMessage());
+            throw new RuntimeException("Ошибка подключения к БД: " . $e->getMessage(), 0, $e);
+        }
+    }
+
+    return $pdo;
+});
+
+// Сервисы для локализации
+$container->singleton('language_service', function ($c) {
+    $config = $c->get('config')['app'];
+    return new LanguageService(
+        $config['allowed_languages'],
+        $config['languages']
+    );
+});
+
+// Менеджер подключения к БД
+$container->singleton('database.connection_manager', function ($c) {
+    $config = $c->get('config');
+    return new App\Infrastructure\Database\DatabaseConnectionManager($config['database']);
+});
+
+// PDO соединение (ленивая инициализация)
+$container->singleton('pdo', function ($c) {
+    $connectionManager = $c->get('database.connection_manager');
+    return $connectionManager->getConnection();
+});
+
+// Репозитории
+$storageDriver = $config['app']['storage_driver'];
+
+$container->singleton('content_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createContentRepository($storageDriver, $locales['main'], $pdo);
+});
+
+$container->singleton('events_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createEventsRepository($storageDriver, $locales['events'], $pdo);
+});
+
+$container->singleton('news_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createNewsRepository($storageDriver, $locales['news'], $pdo);
+});
+
+// Репозитории для виджетов
+$container->singleton('timeline_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createTimelineRepository($storageDriver, $locales['timeline'] ?? './locales/timeline', $pdo);
+});
+
+$container->singleton('social_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createSocialRepository($storageDriver, $locales['social'] ?? './locales/social', $pdo);
+});
+
+$container->singleton('telegram_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createTelegramRepository($storageDriver, $locales['telegram'] ?? './locales/telegram', $pdo);
+});
+
+// Раздел О Проекте
+$container->singleton('about_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createContentRepository($storageDriver, $locales['about'], $pdo);
+});
+
+$container->singleton('about_service', fn($c) => new LocalizedContentService(
+    $c->get('about_repository'),
+    $c->get('language_service')
+));
+
+//Раздел Принципы
+$container->singleton('principles_repository', function ($c) use ($storageDriver) {
+    $locales = $c->get('config')['app']['locales'];
+    $pdo = $storageDriver === 'database' ? $c->get('pdo') : null;
+    return RepositoryFactory::createContentRepository($storageDriver, $locales['principles'], $pdo);
+});
+
+$container->singleton('principles_service', fn($c) => new LocalizedContentService(
+    $c->get('principles_repository'),
+    $c->get('language_service')
+));
+
+// Сервисы для панелей
+$container->singleton('localized_content', fn($c) => new LocalizedContentService(
+    $c->get('content_repository'),
+    $c->get('language_service')
+));
+$container->singleton('event_service', fn($c) => new EventsService($c->get('events_repository')));
+$container->singleton('news_service', fn($c) => new NewsService($c->get('news_repository')));
+
+// контроллеры
+$container->singleton(App\Http\Controllers\AboutController::class, function ($c) {
+    return new App\Http\Controllers\AboutController($c);
+});
+$container->singleton(App\Http\Controllers\HomeController::class, function ($c) {
+    return new App\Http\Controllers\HomeController($c);
+});
+$container->singleton(App\Http\Controllers\PrinciplesController::class, function ($c) {
+    return new App\Http\Controllers\PrinciplesController($c);
+});
+
+// Сервис для определения языка запроса
+$container->set('request_lang', $_GET['lang'] ?? 'ru');
+
+// Регистрация роутера ---
+$container->singleton('router', function ($c) {
+    $router = new Router($c);
+
+    // Регистрируем маршруты
+    $router->addRoute('home', App\Http\Controllers\HomeController::class);
+    $router->addRoute('about', App\Http\Controllers\AboutController::class);
+    $router->addRoute('principles', App\Http\Controllers\PrinciplesController::class);
+    $router->addRoute('auth', App\Http\Controllers\AuthController::class);
+    // Пример добавления новой страницы:
+    // $router->addRoute('contacts', App\Http\Controllers\ContactsController::class);
+
+    return $router;
+});
+
+// Сервис данных сайта
+$container->singleton('site_data', function ($c) {
+    $lang = $c->get('request_lang');
+    return [
+        'lang_code' => $lang,
+        'translator' => $c->get('localized_content'),
+        'events_data' => $c->get('event_service')->getAll($lang),
+        'news_data' => $c->get('news_service')->getAll($lang),
+        'site_title' => $c->get('localized_content')->translate($lang, 'site_title'),
+        'page_title' => $c->get('localized_content')->translate($lang, 'page_title'),
+        'description' => $c->get('localized_content')->translate($lang, 'description'),
+        'version' => $c->get('localized_content')->translate($lang, 'version'),
+    ];
+});
+
+// Сервис для подготовки данных страницы
+$container->singleton('page_data_service', function ($c) {
+    return new App\Application\PageDataService($c);
+});
+
+// ContentManager для работы с событиями и новостями
+$container->singleton('content_manager', function ($c) {
+    return new App\Application\ContentManager(
+        $c->get('events_repository'),
+        $c->get('news_repository')
+    );
+});
+
+// Сервисы панелей
+$container->singleton('sidebar_widget_factory', function ($c) {
+    return new App\Infrastructure\SidebarWidgetFactory($c);
+});
+
+$container->singleton('sidebar_manager', function ($c) {
+    $config = $c->get('config');
+    return new App\Application\SidebarManager(
+        $config['sidebars'] ?? [],
+        $c->get('sidebar_widget_factory')
+    );
+});
+
+// Репозиторий пользователей
+$container->singleton('user_repository', function ($c) {
+    $config = $c->get('config');
+    $dbConfig = $config['database'];
+
+    // Если БД активна, пробуем использовать её
+    if ($dbConfig['is_active']) {
+        try {
+            $pdo = $c->get('pdo');
+            return new App\Infrastructure\Auth\DatabaseUserRepository($pdo);
+        } catch (RuntimeException $e) {
+            // Если БД недоступна, используем файловое хранилище
+            error_log("БД недоступна, используется файловое хранилище: " . $e->getMessage());
+        }
+    }
+
+    // Если БД неактивна или недоступна, используем файловое хранилище
+    return new App\Infrastructure\Auth\FileBasedUserRepository();
+});
+
+// Сервис аутентификации
+$container->singleton('auth_service', function ($c) {
+    $userRepository = $c->get('user_repository');
+    return new App\Infrastructure\Auth\SessionAuthService($userRepository);
+});
+
+// Сервис CAPTCHA
+$container->singleton('captcha_service', function ($c) {
+    return new App\Infrastructure\Security\CaptchaService();
+});
+
+// Контроллер аутентификации
+$container->singleton(App\Http\Controllers\AuthController::class, function ($c) {
+    return new App\Http\Controllers\AuthController($c);
+});
+
+// Сервис навигации
+$container->singleton('nav_service', function ($c) {
+    return new App\Application\NavService($c);
+});
+
+// Health check для БД
+$container->singleton('database.health_check', function ($c) {
+    $connectionManager = $c->get('database.connection_manager');
+    return new App\Infrastructure\Database\DatabaseHealthCheck($connectionManager);
+});
+
+return $container;
+=== Файл: ./includes/auth_form.php ===
+<?php
+// includes/auth_form.php
+declare(strict_types=1);
+/** @var AuthData $data */
+
+use App\View\AuthData;
+
+$action = $data->action;
+$errors = $data->errors;
+$oldInput = $data->oldInput;
+?>
+
+<section class="auth-section">
+    <h2><?= $action === 'login' ? 'Вход' : 'Регистрация' ?></h2>
+
+    <?php if (isset($errors['general'])): ?>
+        <div class="error-message"><?= htmlspecialchars($errors['general']) ?></div>
+    <?php endif; ?>
+
+    <form method="POST" action="?page=auth&action=do_<?= $action ?>&lang=<?= $data->lang_code ?>" class="auth-form">
+        <div class="form-group">
+            <label for="username">Имя пользователя:</label>
+            <input type="text" id="username" name="username"
+                   value="<?= htmlspecialchars($oldInput['username'] ?? '') ?>"
+                   class="<?= isset($errors['username']) ? 'error' : '' ?>">
+            <?php if (isset($errors['username'])): ?>
+                <span class="field-error"><?= htmlspecialchars($errors['username']) ?></span>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($action === 'register'): ?>
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email"
+                       value="<?= htmlspecialchars($oldInput['email'] ?? '') ?>"
+                       class="<?= isset($errors['email']) ? 'error' : '' ?>">
+                <?php if (isset($errors['email'])): ?>
+                    <span class="field-error"><?= htmlspecialchars($errors['email']) ?></span>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
+        <div class="form-group">
+            <label for="password">Пароль:</label>
+            <input type="password" id="password" name="password"
+                   class="<?= isset($errors['password']) ? 'error' : '' ?>">
+            <?php if (isset($errors['password'])): ?>
+                <span class="field-error"><?= htmlspecialchars($errors['password']) ?></span>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($action === 'register'): ?>
+            <div class="form-group">
+                <label for="password_confirm">Подтверждение пароля:</label>
+                <input type="password" id="password_confirm" name="password_confirm"
+                       class="<?= isset($errors['password_confirm']) ? 'error' : '' ?>">
+                <?php if (isset($errors['password_confirm'])): ?>
+                    <span class="field-error"><?= htmlspecialchars($errors['password_confirm']) ?></span>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
+        <div class="form-group">
+            <label for="captcha">Код проверки:</label>
+            <div class="captcha-container">
+                <input type="text" id="captcha" name="captcha"
+                       class="<?= isset($errors['captcha']) ? 'error' : '' ?>">
+                <img src="/captcha.php?lang=<?= $data->lang_code ?>"
+                     alt="CAPTCHA"
+                     onclick="this.src='/captcha.php?lang=<?= $data->lang_code ?>&' + Math.random()"
+                     style="cursor: pointer;">
+            </div>
+            <?php if (isset($errors['captcha'])): ?>
+                <span class="field-error"><?= htmlspecialchars($errors['captcha']) ?></span>
+            <?php endif; ?>
+        </div>
+
+        <button type="submit" class="btn-primary">
+            <?= $action === 'login' ? 'Войти' : 'Зарегистрироваться' ?>
+        </button>
+    </form>
+
+    <div class="auth-links">
+        <?php if ($action === 'login'): ?>
+            <p>Нет аккаунта? <a href="?page=auth&action=register&lang=<?= $data->lang_code ?>">Зарегистрируйтесь</a></p>
+        <?php else: ?>
+            <p>Уже есть аккаунт? <a href="?page=auth&action=login&lang=<?= $data->lang_code ?>">Войдите</a></p>
+        <?php endif; ?>
+    </div>
+</section>
+=== Файл: ./includes/auth_profile.php ===
+<?php
+// includes/auth_profile.php
+declare(strict_types=1);
+/** @var AuthData $data */
+
+use App\View\AuthData;
+
+$user = $data->user;
+?>
+
+<section class="profile-section">
+    <h2>Профиль пользователя</h2>
+
+    <div class="profile-info">
+        <div class="profile-field">
+            <label>Имя пользователя:</label>
+            <span><?= htmlspecialchars($user->username) ?></span>
+        </div>
+
+        <div class="profile-field">
+            <label>Email:</label>
+            <span><?= htmlspecialchars($user->email) ?></span>
+        </div>
+
+        <div class="profile-field">
+            <label>Роль:</label>
+            <span><?= $user->isAdmin() ? 'Администратор' : 'Пользователь' ?></span>
+        </div>
+
+        <div class="profile-field">
+            <label>Дата регистрации:</label>
+            <span><?= $user->createdAt->format('d.m.Y H:i') ?></span>
+        </div>
+
+        <?php if ($user->lastLogin): ?>
+            <div class="profile-field">
+                <label>Последний вход:</label>
+                <span><?= $user->lastLogin->format('d.m.Y H:i') ?></span>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <div class="profile-actions">
+        <a href="?page=auth&action=logout&lang=<?= $data->lang_code ?>" class="btn-secondary">Выйти</a>
+    </div>
+</section>
+=== Файл: ./includes/footer.php ===
+<?php
+declare(strict_types=1);
+/** @var FooterData $data */
+
+use App\View\FooterData;
+
+?>
+<footer>
+    <p>&copy; <?= date('Y') ?> <?= htmlspecialchars($data->site_title) ?>. <?= $data->translator->translate($data->lang_code, 'copyright') ?></p>
+    <p><?= $data->translator->translate($data->lang_code, 'made_with') ?></p>
+</footer>
+
+=== Файл: ./includes/helpers.php ===
+<?php
+declare(strict_types=1);
+
+/**
+ * Безопасно очищает HTML-контент, разрешая только белый список тегов.
+ * Особое внимание уделено обработке ссылок: атрибут href проходит строгую валидацию.
+ */
+function sanitizeHtml(string $html): string
+{
+    // Убираем двойное HTML-экранирование (на случай, если строка уже прошла через htmlspecialchars)
+    $html = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+    // Разрешённые теги
+    $allowedTags = '<p><br><strong><em><h3><ul><ol><li><blockquote><a>';
+    $clean = strip_tags($html, $allowedTags);
+
+    // Обработка ссылок: оставляем только безопасные href
+    return preg_replace_callback(
+        '/<a\s+([^>]*)>/i',
+        static function (array $matches): string {
+            // Извлекаем значение href (в двойных или одинарных кавычках)
+            if (!preg_match('/href\s*=\s*["\']([^"\']*)["\']/i', $matches[1], $m)) {
+                return '<a>';
+            }
+
+            $hrefRaw = $m[1];
+            $hrefDecoded = trim(html_entity_decode($hrefRaw, ENT_QUOTES, 'UTF-8'));
+
+            // Разрешаем только:
+            // - относительные ссылки: начинающиеся с ?, /, #
+            // - абсолютные ссылки на доверенные домены
+            $isAllowed = (
+                preg_match('/^[?\/#]/', $hrefDecoded) ||
+                str_starts_with($hrefDecoded, 'https://projecthumanity.space') ||
+                str_starts_with($hrefDecoded, 'https://t.me/')
+            );
+
+            if ($isAllowed) {
+                // Экранируем исходное значение href для безопасного вывода в HTML
+                $hrefSafe = htmlspecialchars($hrefRaw, ENT_QUOTES, 'UTF-8');
+                return "<a href=\"{$hrefSafe}\">";
+            }
+
+            return '<a>';
+        },
+        $clean
+    );
+}
+=== Файл: ./includes/layout.php ===
+<?php
+// layout.php
+// Ожидаем, что $layoutData и $contentHtml будут переданы сюда из ViewRenderer
+// extract() в render() уже передал переменные
+
+/** @var array $layoutData */ // Данные для layout
+/** @var string $contentHtml */ // Результат рендеринга основного шаблона (main_content.php и т.п.)
+
+// Извлекаем данные из $layoutData
+$lang_code = $layoutData['lang_code'] ?? 'ru';
+$site_title = $layoutData['site_title'] ?? '';
+$page_title = $layoutData['page_title'] ?? '';
+$description = $layoutData['description'] ?? '';
+$version = $layoutData['version'] ?? '1.0';
+$page = $layoutData['page'] ?? 'home';
+
+// Извлекаем готовые HTML строки для компонентов (старая система)
+$navHtml = $layoutData['nav_html'] ?? '';
+$footerHtml = $layoutData['footer_html'] ?? '';
+
+// Новые переменные для системы сайдбаров
+$left_sidebar_html = $layoutData['left_sidebar_html'] ?? '';
+$right_sidebar_html = $layoutData['right_sidebar_html'] ?? '';
+$has_left_sidebar = $layoutData['has_left_sidebar'] ?? false;
+$has_right_sidebar = $layoutData['has_right_sidebar'] ?? false;
+?>
+<!DOCTYPE html>
+<html lang="<?= $lang_code ?>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= htmlspecialchars($page_title) ?> — <?= htmlspecialchars($site_title) ?></title>
+    <meta name="description" content="<?= htmlspecialchars($description) ?>">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="/styles.css"> <!-- Убедись, что путь корректен -->
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1><?= htmlspecialchars($site_title) ?></h1>
+        <p class="tagline"><?= htmlspecialchars($description) ?></p>
+        <p><small><?= htmlspecialchars($version) ?></small></p>
+        <?= $navHtml ?>
+        <div class="lang-switch">
+            <a href="?page=<?= $page ?>&lang=ru"<?= $lang_code === 'ru' ? ' style="opacity: 1;"' : '' ?>>RU</a>
+            <a href="?page=<?= $page ?>&lang=en"<?= $lang_code === 'en' ? ' style="opacity: 1;"' : '' ?>>EN</a>
+        </div>
+    </header>
+
+    <div class="layout">
+        <!-- Левая панель: сначала проверяем новую систему, потом старую -->
+        <?php if ($has_left_sidebar && !empty($left_sidebar_html)): ?>
+            <aside class="sidebar sidebar-left">
+                <?= $left_sidebar_html ?>
+            </aside>
+        <?php endif; ?>
+
+        <main class="main-content">
+            <?= $contentHtml ?>
+        </main>
+
+        <!-- Правая панель: сначала проверяем новую систему, потом старую -->
+        <?php if ($has_right_sidebar && !empty($right_sidebar_html)): ?>
+            <aside class="sidebar sidebar-right">
+                <?= $right_sidebar_html ?>
+            </aside>
+        <?php endif; ?>
+    </div>
+
+    <?= $footerHtml ?>
+
+</div>
+</body>
+</html>
+=== Файл: ./includes/main_content.php ===
+<?php
+declare(strict_types=1);
+// main_content.php
+/** @var MainContentData $data */
+
+use App\View\MainContentData;
+
+// Подключаем функцию санитизации (если ещё не подключена)
+require_once __DIR__ . '/helpers.php';
+?>
+
+<section class="mission">
+    <h2><?= htmlspecialchars($data->translator->translate($data->lang_code, 'mission')) ?></h2>
+    <?php $mission_text = $data->translator->translateArray($data->lang_code, 'mission_text'); ?>
+    <?php foreach ($mission_text as $paragraph): ?>
+        <p><?= sanitizeHtml($paragraph) ?></p>
+    <?php endforeach; ?>
+</section>
+
+<section>
+    <h2><?= htmlspecialchars($data->translator->translate($data->lang_code, 'principles')) ?></h2>
+    <?php $principles = $data->translator->translateArray($data->lang_code, 'principles_list'); ?>
+    <?php if (!empty($principles)): ?>
+        <ul>
+            <?php foreach ($principles as $item): ?>
+                <li><?= htmlspecialchars($item) ?></li>
+            <?php endforeach; ?>
+        </ul>
+    <?php else: ?>
+        <p><em>Ошибка: данные для принципов не являются списком.</em></p>
+    <?php endif; ?>
+</section>
+
+<section>
+    <h2><?= $data->translator->translate($data->lang_code, 'join') ?></h2>
+    <?php $join_text = $data->translator->translateArray($data->lang_code, 'join_text'); ?>
+    <p><?= htmlspecialchars($join_text[0] ?? '') ?></p>
+    <p><?= htmlspecialchars($join_text[1] ?? '') ?></p>
+    <p>
+        <a href="mailto:hello@projecthumanity.space"><?= $data->translator->translate($data->lang_code, 'contact') ?></a> •
+        <a href="https://t.me/projecthumanity_space" target="_blank" rel="noopener noreferrer">
+            <?= $data->translator->translate($data->lang_code, 'telegram') ?>
+        </a>
+    </p>
+</section>
+=== Файл: ./includes/nav.php ===
+<?php
+declare(strict_types=1);
+/** @var NavData $data */
+
+use App\View\NavData;
+?>
+
+<nav class="main-nav">
+    <a href="?lang=<?= htmlspecialchars($data->current_lang) ?>"<?= $data->current_page === 'home' ? ' class="active"' : '' ?>>
+        <?= htmlspecialchars($data->translator->translate($data->current_lang, 'nav_home')) ?>
+    </a>
+    <a href="?page=about&lang=<?= htmlspecialchars($data->current_lang) ?>"<?= $data->current_page === 'about' ? ' class="active"' : '' ?>>
+        <?= htmlspecialchars($data->translator->translate($data->current_lang, 'nav_about')) ?>
+    </a>
+    <a href="?page=principles&lang=<?= htmlspecialchars($data->current_lang) ?>"<?= $data->current_page === 'principles' ? ' class="active"' : '' ?>>
+        <?= htmlspecialchars($data->translator->translate($data->current_lang, 'nav_principles')) ?>
+    </a>
+
+    <?php if ($data->nav_service->isUserLoggedIn()): ?>
+        <a href="?page=auth&action=profile&lang=<?= htmlspecialchars($data->current_lang) ?>"<?= $data->current_page === 'auth' ? ' class="active"' : '' ?>>
+            <?= htmlspecialchars($data->translator->translate($data->current_lang, 'profile')) ?>
+        </a>
+        <a href="?page=auth&action=logout&lang=<?= htmlspecialchars($data->current_lang) ?>">
+            <?= htmlspecialchars($data->translator->translate($data->current_lang, 'logout')) ?>
+        </a>
+    <?php else: ?>
+        <a href="?page=auth&action=login&lang=<?= htmlspecialchars($data->current_lang) ?>"<?= $data->current_page === 'auth' ? ' class="active"' : '' ?>>
+            <?= htmlspecialchars($data->translator->translate($data->current_lang, 'login')) ?>
+        </a>
+    <?php endif; ?>
+</nav>
+=== Файл: ./includes/page_about.php ===
+<?php
+declare(strict_types=1);
+/** @var \App\View\PageAboutData $data */
+require_once __DIR__ . '/helpers.php';
+?>
+
+<section class="page-about">
+    <h1><?= htmlspecialchars($data->translator->translate($data->lang_code, 'title')) ?></h1>
+    <?php $content = $data->translator->translateArray($data->lang_code, 'content'); ?>
+    <?php foreach ($content as $block): ?>
+        <?= sanitizeHtml($block) ?>
+    <?php endforeach; ?>
+</section>
+=== Файл: ./includes/page_principles.php ===
+<?php
+declare(strict_types=1);
+/** @var PagePrinciplesData $data */
+use App\View\PagePrinciplesData;
+require_once __DIR__ . '/helpers.php';
+?>
+
+<section class="page-principles">
+    <h2><?= htmlspecialchars($data->translator->translate($data->lang_code, 'title')) ?></h2>
+    <?php $principles = $data->translator->translateArray($data->lang_code, 'principles_list'); ?>
+    <div class="principles-list-wrapper">
+        <?php foreach ($principles as $block): ?>
+            <div class="principle-item">
+                <?= sanitizeHtml($block) ?>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</section>
+=== Файл: ./includes/sidebar.php ===
+<?php
+// includes/sidebar.php
+
+declare(strict_types=1);
+
+/** @var App\View\SidebarData $data */
+$content = $data->content;
+$position = $data->position;
+?>
+
+    <!-- Виджеты рендерятся без внешнего div.sidebar - он уже есть в layout.php -->
+<?php if ($content['type'] === 'events'): ?>
+    <div class="sidebar-widget events-widget">
+        <h3><?= htmlspecialchars($content['title'] ?? 'Предстоящие события') ?></h3>
+        <?php if (!empty($content['events'])): ?>
+            <div class="events-list">
+                <?php foreach (array_slice($content['events'], 0, $content['max_items'] ?? 5) as $event): ?>
+                    <div class="event-item">
+                        <div class="event-date"><?= htmlspecialchars($event['date'] ?? '') ?></div>
+                        <div class="event-title"><?= htmlspecialchars($event['title'] ?? '') ?></div>
+                        <?php if (isset($event['description'])): ?>
+                            <div class="event-description"><?= htmlspecialchars($event['description']) ?></div>
+                        <?php endif; ?>
+                        <?php if (isset($event['type'])): ?>
+                            <div class="event-type event-type-<?= htmlspecialchars($event['type']) ?>">
+                                <?= htmlspecialchars($event['type']) ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <p><em><?= htmlspecialchars($content['no_content_message'] ?? 'Пока нет предстоящих событий') ?></em></p>
+        <?php endif; ?>
+    </div>
+
+<?php elseif ($content['type'] === 'news'): ?>
+    <div class="sidebar-widget news-widget">
+        <h3><?= htmlspecialchars($content['title'] ?? 'Последние новости') ?></h3>
+        <?php if (!empty($content['news'])): ?>
+            <div class="news-list">
+                <?php foreach (array_slice($content['news'], 0, $content['max_items'] ?? 3) as $news): ?>
+                    <div class="news-item">
+                        <div class="news-date"><?= htmlspecialchars($news['date'] ?? '') ?></div>
+                        <div class="news-title"><?= htmlspecialchars($news['title'] ?? '') ?></div>
+                        <?php if (isset($news['description'])): ?>
+                            <div class="news-description"><?= htmlspecialchars($news['description']) ?></div>
+                        <?php endif; ?>
+                        <?php if (isset($news['type'])): ?>
+                            <div class="news-type news-type-<?= htmlspecialchars($news['type']) ?>">
+                                <?= htmlspecialchars($news['type']) ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <p><em><?= htmlspecialchars($content['no_content_message'] ?? 'Пока нет новостей') ?></em></p>
+        <?php endif; ?>
+    </div>
+
+<?php elseif ($content['type'] === 'timeline'): ?>
+    <div class="sidebar-widget timeline-widget">
+        <h3><?= htmlspecialchars($content['title'] ?? 'История развития') ?></h3>
+        <?php if (!empty($content['events'])): ?>
+            <div class="timeline">
+                <?php foreach ($content['events'] as $event): ?>
+                    <div class="timeline-event">
+                        <div class="timeline-year"><?= htmlspecialchars($event['year'] ?? '') ?></div>
+                        <div class="timeline-description"><?= htmlspecialchars($event['description'] ?? '') ?></div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <p><em><?= htmlspecialchars($content['no_content_message'] ?? 'Нет данных для отображения') ?></em></p>
+        <?php endif; ?>
+    </div>
+
+<?php elseif ($content['type'] === 'social'): ?>
+    <div class="sidebar-widget social-widget">
+        <h3><?= htmlspecialchars($content['title'] ?? 'Мы в соцсетях') ?></h3>
+        <?php if (!empty($content['networks'])): ?>
+            <div class="social-links">
+                <?php foreach ($content['networks'] as $network): ?>
+                    <a href="#" class="social-link social-<?= htmlspecialchars($network) ?>">
+                        <?= htmlspecialchars(ucfirst($network)) ?>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <p><em><?= htmlspecialchars($content['no_content_message'] ?? 'Нет доступных соцсетей') ?></em></p>
+        <?php endif; ?>
+    </div>
+
+<?php elseif ($content['type'] === 'telegram'): ?>
+    <div class="sidebar-widget telegram-widget">
+        <h3><?= htmlspecialchars($content['title'] ?? 'Telegram канал') ?></h3>
+        <?php if (!empty($content['posts'])): ?>
+            <div class="telegram-posts">
+                <?php foreach (array_slice($content['posts'], 0, 3) as $post): ?>
+                    <div class="telegram-post">
+                        <div class="post-text"><?= htmlspecialchars($post['text'] ?? 'Пример поста из Telegram') ?></div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <p><em><?= htmlspecialchars($content['no_content_message'] ?? 'Нет постов для отображения') ?></em></p>
+        <?php endif; ?>
+        <a href="<?= htmlspecialchars($content['channel_url'] ?? '#') ?>" target="_blank" class="telegram-link">
+            Подписаться в Telegram
+        </a>
+    </div>
+<?php endif; ?>
+=== Файл: ./index.php ===
+<?php
+// index.php
+declare(strict_types=1);
+
+// Подключаем ядро приложения и получаем контейнер
+use App\Http\RequestHandler;
+use function App\Http\sendCleanErrorPage;
+
+$container = require_once __DIR__ . '/app/bootstrap.php';
+
+try {
+    $requestHandler = new RequestHandler($container);
+    $requestHandler->handle();
+
+} catch (\Throwable $e) {
+    $config = $container->get('config');
+    $debugMode = $config['app']['debug'] ?? true;
+    sendCleanErrorPage($e->getMessage(), $e->getFile(), (string) $e->getLine(), $e->getTraceAsString(), $debugMode);
+}
+=== Файл: ./run_migrations.php ===
+<?php
+declare(strict_types=1);
+
+$container = require_once 'container.php';
+$pdo = $container->get('pdo');
+
+$migrationsDir = __DIR__ . '/migrations';
+
+// Убедимся, что таблица миграций существует
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS migrations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            migration_name VARCHAR(255) NOT NULL UNIQUE,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+} catch (Exception $e) {
+    die("ОШИБКА: Не удалось создать таблицу миграций: " . $e->getMessage() . "\n");
+}
+
+// Получим список уже применённых миграций
+try {
+    $stmt = $pdo->query("SELECT migration_name FROM migrations ORDER BY applied_at ASC");
+    $appliedMigrations = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+    die("ОШИБКА: Не удалось получить список миграций: " . $e->getMessage() . "\n");
+}
+
+// Найдём все .sql файлы
+$migrationFiles = [];
+if (is_dir($migrationsDir)) {
+    foreach (scandir($migrationsDir) as $file) {
+        if (pathinfo($file, PATHINFO_EXTENSION) === 'sql') {
+            $migrationFiles[] = $file;
+        }
+    }
+    sort($migrationFiles);
+} else {
+    die("ОШИБКА: Директория миграций '$migrationsDir' не найдена\n");
+}
+
+$pendingMigrations = array_diff($migrationFiles, $appliedMigrations);
+
+if (empty($pendingMigrations)) {
+    echo "Все миграции уже применены.\n";
+    exit(0);
+}
+
+echo "Найдены " . count($pendingMigrations) . " новых миграций для применения:\n";
+
+foreach ($pendingMigrations as $migrationFile) {
+    echo "  - Применяем $migrationFile... ";
+
+    $sqlFile = $migrationsDir . '/' . $migrationFile;
+
+    if (!file_exists($sqlFile)) {
+        echo "ОШИБКА: Файл не найден\n";
+        exit(1);
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $sqlContent = file_get_contents($sqlFile);
+        if (empty($sqlContent)) {
+            throw new Exception("Файл миграции пуст");
+        }
+
+        $pdo->exec($sqlContent);
+
+        $stmt = $pdo->prepare("INSERT INTO migrations (migration_name) VALUES (?)");
+        $stmt->execute([$migrationFile]);
+
+        $pdo->commit();
+        echo "success\n";
+
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo "error: " . $e->getMessage() . "\n";
+        exit(1);
+    }
+}
+
+echo "Все миграции успешно применены!\n";
+
+=== Файл: ./src/Application/ContentManager.php ===
+<?php
+declare(strict_types=1);
+
+// src/Application/ContentManager.php
+
+namespace App\Application;
+
+use App\Domain\EventsRepositoryInterface;
+use App\Domain\NewsRepositoryInterface;
+use DateTimeImmutable;
+
+class ContentManager
+{
+    public function __construct(
+        private readonly EventsRepositoryInterface $eventsRepository,
+        private readonly NewsRepositoryInterface $newsRepository
+    ) {}
+
+    /**
+     * Получает активные события (будущие)
+     */
+    public function getActiveEvents(string $lang): array
+    {
+        $events = $this->eventsRepository->findByLang($lang);
+        $now = new DateTimeImmutable();
+
+        return array_filter($events, function ($event) use ($now) {
+            if (!isset($event['date'])) return false;
+
+            $eventDate = DateTimeImmutable::createFromFormat('Y-m-d', $event['date']);
+            return $eventDate && $eventDate >= $now;
+        });
+    }
+
+    /**
+     * Получает архив событий (прошедшие)
+     */
+    public function getArchivedEvents(string $lang): array
+    {
+        $events = $this->eventsRepository->findByLang($lang);
+        $now = new DateTimeImmutable();
+
+        return array_filter($events, function ($event) use ($now) {
+            if (!isset($event['date'])) return false;
+
+            $eventDate = DateTimeImmutable::createFromFormat('Y-m-d', $event['date']);
+            return $eventDate && $eventDate < $now;
+        });
+    }
+
+    /**
+     * Получает все новости (включая архив событий)
+     */
+    public function getAllNews(string $lang): array
+    {
+        $news = $this->newsRepository->findByLang($lang);
+        $archivedEvents = $this->getArchivedEvents($lang);
+
+        // Объединяем новости и архив событий
+        $allContent = array_merge($news, $archivedEvents);
+
+        // Сортируем по дате (новые сначала)
+        usort($allContent, function ($a, $b) {
+            return strtotime($b['date']) <=> strtotime($a['date']);
+        });
+
+        return $allContent;
+    }
+
+    /**
+     * Получает последние новости (ограниченное количество)
+     */
+    public function getLatestNews(string $lang, int $limit = 5): array
+    {
+        $allNews = $this->getAllNews($lang);
+        return array_slice($allNews, 0, $limit);
+    }
+}
+=== Файл: ./src/Application/EventsService.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Application;
+// App/Application/EventsService.php
+use App\Domain\EventsRepositoryInterface;
+
+class EventsService {
+    public function __construct(private readonly EventsRepositoryInterface $repo) {}
+    public function getAll(string $lang): array { return $this->repo->findByLang($lang); }
+}
+=== Файл: ./src/Application/LocalizedContentService.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Application;
+
+use App\Domain\ContentRepositoryInterface;
+use App\Services\LanguageService;
+
+class LocalizedContentService
+{
+    public function __construct(
+        private readonly ContentRepositoryInterface $contentRepo,
+        private readonly LanguageService $langService
+    ) {}
+
+    public function translate(string $lang, string $key, ?string $fallback = null): string
+    {
+        $lang = $this->langService->validate($lang);
+        $value = $this->contentRepo->get($lang, $key);
+        return is_string($value) ? $value : ($fallback ?? $key);
+    }
+
+    public function translateArray(string $lang, string $key, array $fallback = []): array
+    {
+        $lang = $this->langService->validate($lang);
+        $value = $this->contentRepo->get($lang, $key);
+        return is_array($value) ? $value : $fallback;
+    }
+}
+=== Файл: ./src/Application/NavService.php ===
+<?php
+declare(strict_types=1);
+// src/Application/NavService.php
+
+namespace App\Application;
+
+use App\Domain\Auth\AuthServiceInterface;
+use App\Infrastructure\ContainerInterface;
+
+class NavService
+{
+    public function __construct(
+        private readonly ContainerInterface $container
+    ) {}
+
+    public function isUserLoggedIn(): bool
+    {
+        $authService = $this->container->get('auth_service');
+        return $authService->isLoggedIn();
+    }
+
+    public function getCurrentUser()
+    {
+        $authService = $this->container->get('auth_service');
+        return $authService->getCurrentUser();
+    }
+}
+=== Файл: ./src/Application/NewsService.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Application;
+// App/Application/NewsService.php
+use App\Domain\NewsRepositoryInterface;
+
+class NewsService {
+    public function __construct(private readonly NewsRepositoryInterface $repo) {}
+    public function getAll(string $lang): array { return $this->repo->findByLang($lang); }
+}
+=== Файл: ./src/Application/PageDataService.php ===
+<?php
+declare(strict_types=1);
+// src/Application/PageDataService.php
+
+namespace App\Application;
+
+use App\Infrastructure\ContainerInterface;
+use App\View\NavData;
+use App\View\FooterData;
+
+class PageDataService
+{
+    public function __construct(
+        private readonly ContainerInterface $container
+    ) {}
+
+    public function prepareLayoutData(string $page, string $lang): array
+    {
+        $siteData = $this->container->get('site_data');
+        $sidebarManager = $this->container->get('sidebar_manager');
+        $navService = $this->container->get('nav_service');
+
+        $translator = $siteData['translator'];
+        $lang_code = $siteData['lang_code'];
+
+        $navData = new NavData(
+            current_lang: $lang_code,
+            current_page: $page,
+            translator: $translator,
+            nav_service: $navService
+        );
+
+        $footerData = new FooterData(
+            site_title: $siteData['site_title'],
+            translator: $translator,
+            lang_code: $lang_code
+        );
+
+        $leftSidebarContent = $sidebarManager->getSidebarContent('left', $page, $lang_code);
+        $rightSidebarContent = $sidebarManager->getSidebarContent('right', $page, $lang_code);
+
+        return [
+            'site_data' => $siteData,
+            'nav_data' => $navData,
+            'footer_data' => $footerData,
+            'left_sidebar_content' => $leftSidebarContent,
+            'right_sidebar_content' => $rightSidebarContent,
+        ];
+    }
+}
+=== Файл: ./src/Application/SidebarManager.php ===
+<?php
+declare(strict_types=1);
+
+// src/Application/SidebarManager.php
+
+namespace App\Application;
+
+use App\Domain\Sidebar\SidebarManagerInterface;
+use App\Domain\Sidebar\WidgetFactoryInterface;
+
+class SidebarManager implements SidebarManagerInterface
+{
+    public function __construct(
+        private readonly array $sidebarConfig,
+        private readonly WidgetFactoryInterface $widgetFactory
+    ) {}
+
+    public function getSidebarContent(string $position, string $page, string $lang): ?array
+    {
+        $config = $this->getSidebarConfig($position, $page);
+
+        if (!$config || $config['widget'] === 'off') {
+            return null;
+        }
+
+        $widget = $this->widgetFactory->create($config['widget'], $config);
+        return $widget ? $widget->getContent($lang, $config) : null;
+    }
+
+    public function hasSidebar(string $position, string $page): bool
+    {
+        $config = $this->getSidebarConfig($position, $page);
+        return $config && $config['widget'] !== 'off';
+    }
+
+    public function getSidebarConfig(string $position, string $page): ?array
+    {
+        return $this->sidebarConfig[$position][$page] ?? null;
+    }
+}
+=== Файл: ./src/Domain/Auth/AuthServiceInterface.php ===
+<?php
+declare(strict_types=1);
+// src/Domain/Auth/AuthServiceInterface.php
+
+namespace App\Domain\Auth;
+
+interface AuthServiceInterface
+{
+    public function register(string $username, string $email, string $password): User;
+    public function login(string $username, string $password): ?User;
+    public function logout(): void;
+    public function getCurrentUser(): ?User;
+    public function isLoggedIn(): bool;
+    public function validatePassword(string $password, string $hash): bool;
+    public function hashPassword(string $password): string;
+}
+=== Файл: ./src/Domain/Auth/User.php ===
+<?php
+declare(strict_types=1);
+// src/Domain/Auth/User.php
+
+namespace App\Domain\Auth;
+
+class User
+{
+    public function __construct(
+        public readonly ?int $id,
+        public readonly string $username,
+        public readonly string $email,
+        public readonly string $passwordHash,
+        public readonly string $role,
+        public readonly bool $isActive,
+        public readonly \DateTimeImmutable $createdAt,
+        public readonly ?\DateTimeImmutable $updatedAt,
+        public readonly ?\DateTimeImmutable $lastLogin
+    ) {}
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+}
+=== Файл: ./src/Domain/Auth/UserRepositoryInterface.php ===
+<?php
+declare(strict_types=1);
+// src/Domain/Auth/UserRepositoryInterface.php
+
+namespace App\Domain\Auth;
+
+interface UserRepositoryInterface
+{
+    public function findById(int $id): ?User;
+    public function findByUsername(string $username): ?User;
+    public function findByEmail(string $email): ?User;
+    public function save(User $user): void;
+    public function updateLastLogin(int $userId): void;
+}
+=== Файл: ./src/Domain/ContentRepositoryInterface.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain;
+
+interface ContentRepositoryInterface
+{
+    public function get(string $lang, string $key): string|array|null;
+    public function getAll(string $lang): array;
+}
+=== Файл: ./src/Domain/EventsRepositoryInterface.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain;
+interface EventsRepositoryInterface extends RepositoryInterface {}
+=== Файл: ./src/Domain/ItemsRepositoryInterface.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain;
+
+interface ItemsRepositoryInterface
+{
+    public function findByLang(string $lang): array;
+    public function getWidgetData(string $lang): array;
+}
+=== Файл: ./src/Domain/NewsRepositoryInterface.php ===
+<?php
+declare(strict_types=1);
+
+// src/Repositories/NewsRepositoryInterface.php
+
+namespace App\Domain;
+
+interface NewsRepositoryInterface extends RepositoryInterface {}
+=== Файл: ./src/Domain/RepositoryInterface.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain;
+interface RepositoryInterface
+{
+    public function findByLang(string $lang): array;
+}
+=== Файл: ./src/Domain/Sidebar/AbstractSidebarWidget.php ===
+<?php
+declare(strict_types=1);
+
+// src/Domain/Sidebar/AbstractSidebarWidget.php
+
+namespace App\Domain\Sidebar;
+
+abstract class AbstractSidebarWidget implements SidebarWidgetInterface
+{
+    public function __construct(
+        protected array $config
+    ) {}
+
+    abstract public function getContent(string $lang, array $context = []): array;
+}
+=== Файл: ./src/Domain/Sidebar/EventsSidebarWidget.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain\Sidebar;
+
+use App\Application\ContentManager;
+use App\Infrastructure\JsonEventsRepository;
+
+class EventsSidebarWidget extends AbstractSidebarWidget
+{
+    public function __construct(
+        private readonly ContentManager $contentManager,
+        private readonly JsonEventsRepository $eventsRepository,
+        array $config
+    ) {
+        parent::__construct($config);
+    }
+
+    public function getContent(string $lang, array $context = []): array
+    {
+        $widgetData = $this->eventsRepository->getWidgetData($lang);
+        $events = $this->contentManager->getActiveEvents($lang);
+
+        return [
+            'type' => 'events',
+            'title' => $widgetData['widget_title'],
+            'no_content_message' => $widgetData['no_items'],
+            'events' => $events,
+            'max_items' => $this->config['max_items'] ?? 5
+        ];
+    }
+}
+=== Файл: ./src/Domain/Sidebar/NewsSidebarWidget.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain\Sidebar;
+
+use App\Application\ContentManager;
+use App\Infrastructure\JsonNewsRepository;
+
+class NewsSidebarWidget extends AbstractSidebarWidget
+{
+    public function __construct(
+        private readonly ContentManager $contentManager,
+        private readonly JsonNewsRepository $newsRepository,
+        array $config
+    ) {
+        parent::__construct($config);
+    }
+
+    public function getContent(string $lang, array $context = []): array
+    {
+        $widgetData = $this->newsRepository->getWidgetData($lang);
+        $news = $this->contentManager->getLatestNews($lang, $this->config['max_items'] ?? 3);
+
+        return [
+            'type' => 'news',
+            'title' => $widgetData['widget_title'],
+            'no_content_message' => $widgetData['no_items'],
+            'news' => $news,
+            'max_items' => $this->config['max_items'] ?? 3
+        ];
+    }
+}
+=== Файл: ./src/Domain/Sidebar/SidebarManagerInterface.php ===
+<?php
+declare(strict_types=1);
+
+// src/Domain/Sidebar/SidebarManagerInterface.php
+
+namespace App\Domain\Sidebar;
+
+interface SidebarManagerInterface
+{
+    public function getSidebarContent(string $position, string $page, string $lang): ?array;
+    public function hasSidebar(string $position, string $page): bool;
+    public function getSidebarConfig(string $position, string $page): ?array;
+}
+=== Файл: ./src/Domain/Sidebar/SidebarWidgetInterface.php ===
+<?php
+declare(strict_types=1);
+
+// src/Domain/Sidebar/SidebarWidgetInterface.php
+
+namespace App\Domain\Sidebar;
+
+interface SidebarWidgetInterface
+{
+    public function getContent(string $lang, array $context = []): array;
+}
+=== Файл: ./src/Domain/Sidebar/SocialSidebarWidget.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain\Sidebar;
+
+use App\Infrastructure\JsonSocialRepository;
+
+class SocialSidebarWidget extends AbstractSidebarWidget
+{
+    public function __construct(
+        private readonly JsonSocialRepository $socialRepository,
+        array $config
+    ) {
+        parent::__construct($config);
+    }
+
+    public function getContent(string $lang, array $context = []): array
+    {
+        $widgetData = $this->socialRepository->getWidgetData($lang);
+        $networks = $this->socialRepository->findByLang($lang);
+
+        return [
+            'type' => 'social',
+            'title' => $widgetData['widget_title'],
+            'no_content_message' => $widgetData['no_items'],
+            'networks' => $networks,
+            'max_items' => $this->config['max_items'] ?? 5
+        ];
+    }
+}
+=== Файл: ./src/Domain/Sidebar/TeamSidebarWidget.php ===
+<?php
+declare(strict_types=1);
+
+// src/Domain/Sidebar/TeamSidebarWidget.php
+
+namespace App\Domain\Sidebar;
+
+use App\Application\TeamService;
+
+class TeamSidebarWidget extends AbstractSidebarWidget
+{
+    public function __construct(
+        private readonly TeamService $teamService,
+        array $config
+    ) {
+        parent::__construct($config);
+    }
+
+    public function getContent(string $lang, array $context = []): array
+    {
+        return [
+            'type' => 'team',
+            'title' => 'Наша команда',
+            'members' => $this->teamService->getTeamMembers($lang),
+            'max_members' => $this->config['max_members'] ?? 5
+        ];
+    }
+}
+=== Файл: ./src/Domain/Sidebar/TelegramSidebarWidget.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain\Sidebar;
+
+use App\Infrastructure\JsonTelegramRepository;
+
+class TelegramSidebarWidget extends AbstractSidebarWidget
+{
+    public function __construct(
+        private readonly JsonTelegramRepository $telegramRepository,
+        array $config
+    ) {
+        parent::__construct($config);
+    }
+
+    public function getContent(string $lang, array $context = []): array
+    {
+        $widgetData = $this->telegramRepository->getWidgetData($lang);
+        $posts = $this->telegramRepository->findByLang($lang);
+
+        return [
+            'type' => 'telegram',
+            'title' => $widgetData['widget_title'],
+            'no_content_message' => $widgetData['no_items'],
+            'posts' => $posts,
+            'channel_url' => $this->config['channel_url'] ?? '#',
+            'max_items' => $this->config['max_items'] ?? 3
+        ];
+    }
+}
+=== Файл: ./src/Domain/Sidebar/TimelineSidebarWidget.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain\Sidebar;
+
+use App\Infrastructure\JsonTimelineRepository;
+
+class TimelineSidebarWidget extends AbstractSidebarWidget
+{
+    public function __construct(
+        private readonly JsonTimelineRepository $timelineRepository,
+        array $config
+    ) {
+        parent::__construct($config);
+    }
+
+    public function getContent(string $lang, array $context = []): array
+    {
+        $widgetData = $this->timelineRepository->getWidgetData($lang);
+        $events = $this->timelineRepository->findByLang($lang);
+
+        return [
+            'type' => 'timeline',
+            'title' => $widgetData['widget_title'],
+            'no_content_message' => $widgetData['no_items'],
+            'events' => $events,
+            'max_items' => $this->config['max_items'] ?? 5
+        ];
+    }
+}
+=== Файл: ./src/Domain/Sidebar/WidgetFactoryInterface.php ===
+<?php
+declare(strict_types=1);
+
+// src/Domain/Sidebar/WidgetFactoryInterface.php
+
+namespace App\Domain\Sidebar;
+
+interface WidgetFactoryInterface
+{
+    public function create(string $widgetType, array $config): ?SidebarWidgetInterface;
+}
+=== Файл: ./src/Domain/SocialRepositoryInterface.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain;
+
+interface SocialRepositoryInterface extends ItemsRepositoryInterface {}
+=== Файл: ./src/Domain/TelegramRepositoryInterface.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Domain;
+
+interface TelegramRepositoryInterface extends RepositoryInterface {}
+=== Файл: ./src/Domain/TimelineRepositoryInterface.php ===
+<?php
+
+namespace App\Domain;
+
+interface TimelineRepositoryInterface extends RepositoryInterface {}
+=== Файл: ./src/Http/Controllers/AboutController.php ===
+<?php
+declare(strict_types=1);
+
+// src/Http/Controllers/AboutController.php
+
+namespace App\Http\Controllers;
+
+use App\View\PageAboutData;
+use Throwable;
+
+class AboutController extends AbstractController
+{
+    /**
+     * @throws Throwable
+     */
+    public function handle(string $page, string $lang): string
+    {
+        $about_service = $this->container->get('about_service');
+        $aboutData = new PageAboutData(translator: $about_service, lang_code: $lang);
+
+        return $this->renderPage('page_about.php', $aboutData, $page, $lang);
+    }
+}
+=== Файл: ./src/Http/Controllers/AbstractController.php ===
+<?php
+declare(strict_types=1);
+
+// src/Http/Controllers/AbstractController.php
+
+namespace App\Http\Controllers;
+
+use App\Infrastructure\ContainerInterface;
+use App\Http\ViewRenderer;
+use App\View\TemplateDataInterface;
+use Throwable;
+
+abstract class AbstractController implements ControllerInterface
+{
+    protected ContainerInterface $container;
+    protected ViewRenderer $viewRenderer;
+
+    public function __construct(ContainerInterface $container)
+    {
+        $this->container = $container;
+        $this->viewRenderer = new ViewRenderer(__DIR__ . '/../../../includes/', 'layout.php');
+    }
+
+    protected function renderPage(
+        string $templateName,
+        TemplateDataInterface $pageData,
+        string $page,
+        string $lang
+    ): string {
+        $pageDataService = $this->container->get('page_data_service');
+        $preparedData = $pageDataService->prepareLayoutData($page, $lang);
+
+        $siteData = $preparedData['site_data'];
+        $navData = $preparedData['nav_data'];
+        $footerData = $preparedData['footer_data'];
+        $leftSidebarContent = $preparedData['left_sidebar_content'];
+        $rightSidebarContent = $preparedData['right_sidebar_content'];
+
+        // Рендерим компоненты и формируем layout data
+        $layoutData = [
+            'lang_code' => $siteData['lang_code'],
+            'site_title' => $siteData['site_title'],
+            'page_title' => $siteData['page_title'],
+            'description' => $siteData['description'],
+            'version' => $siteData['version'],
+            'page' => $page,
+            'nav_html' => $this->viewRenderer->renderWithoutLayout('nav.php', $navData),
+            'left_sidebar_html' => $this->renderSidebar($leftSidebarContent, 'left'),
+            'right_sidebar_html' => $this->renderSidebar($rightSidebarContent, 'right'),
+            'footer_html' => $this->viewRenderer->renderWithoutLayout('footer.php', $footerData),
+            'has_left_sidebar' => !empty($leftSidebarContent),
+            'has_right_sidebar' => !empty($rightSidebarContent),
+        ];
+
+        return $this->viewRenderer->render($templateName, $pageData, $layoutData);
+    }
+
+    private function renderSidebar(?array $content, string $position): string
+    {
+        return $content
+            ? $this->viewRenderer->renderWithoutLayout('sidebar.php', new \App\View\SidebarData($content, $position))
+            : '';
+    }
+}
+=== Файл: ./src/Http/Controllers/AuthController.php ===
+<?php
+declare(strict_types=1);
+// src/Http/Controllers/AuthController.php
+
+namespace App\Http\Controllers;
+
+use App\Domain\Auth\AuthServiceInterface;
+use App\Infrastructure\Security\CaptchaService;
+use App\View\AuthData;
+use InvalidArgumentException;
+use JetBrains\PhpStorm\NoReturn;
+use RuntimeException;
+use Throwable;
+
+class AuthController extends AbstractController
+{
+    /**
+     * @throws Throwable
+     */
+    public function handle(string $page, string $lang): string
+    {
+        $action = $_GET['action'] ?? 'login';
+
+        return match ($action) {
+            'login' => $this->showLogin($page, $lang),
+            'register' => $this->showRegister($page, $lang),
+            'profile' => $this->showProfile($page, $lang),
+            'do_login' => $this->processLogin($page, $lang),
+            'do_register' => $this->processRegister($page, $lang),
+            'logout' => $this->processLogout($page, $lang),
+            default => $this->showLogin($page, $lang)
+        };
+    }
+
+    private function showLogin(string $page, string $lang): string
+    {
+        $authService = $this->container->get('auth_service');
+
+        if ($authService->isLoggedIn()) {
+            header("Location: ?page=auth&action=profile&lang=$lang");
+            exit;
+        }
+
+        $authData = new AuthData(
+            translator: $this->container->get('localized_content'),
+            lang_code: $lang,
+            action: 'login',
+            errors: [],
+            oldInput: []
+        );
+
+        return $this->renderPage('auth_form.php', $authData, $page, $lang);
+    }
+
+    private function showRegister(string $page, string $lang): string
+    {
+        $authService = $this->container->get('auth_service');
+
+        if ($authService->isLoggedIn()) {
+            header("Location: ?page=auth&action=profile&lang=$lang");
+            exit;
+        }
+
+        $authData = new AuthData(
+            translator: $this->container->get('localized_content'),
+            lang_code: $lang,
+            action: 'register',
+            errors: [],
+            oldInput: []
+        );
+
+        return $this->renderPage('auth_form.php', $authData, $page, $lang);
+    }
+
+    private function showProfile(string $page, string $lang): string
+    {
+        $authService = $this->container->get('auth_service');
+
+        if (!$authService->isLoggedIn()) {
+            header("Location: ?page=auth&action=login&lang=$lang");
+            exit;
+        }
+
+        $user = $authService->getCurrentUser();
+        $authData = new AuthData(
+            translator: $this->container->get('localized_content'),
+            lang_code: $lang,
+            action: 'profile',
+            user: $user,
+            errors: [],
+            oldInput: []
+        );
+
+        return $this->renderPage('auth_profile.php', $authData, $page, $lang);
+    }
+
+    private function processLogin(string $page, string $lang): string
+    {
+        $authService = $this->container->get('auth_service');
+        $captchaService = $this->container->get('captcha_service');
+
+        $errors = [];
+        $oldInput = [
+            'username' => $_POST['username'] ?? ''
+        ];
+
+        // Валидация
+        if (empty($_POST['username'])) {
+            $errors['username'] = 'Введите имя пользователя';
+        }
+
+        if (empty($_POST['password'])) {
+            $errors['password'] = 'Введите пароль';
+        }
+
+        if (empty($_POST['captcha'])) {
+            $errors['captcha'] = 'Введите код с картинки';
+        } elseif (!$captchaService->validate($_POST['captcha'])) {
+            $errors['captcha'] = 'Неверный код проверки';
+        }
+
+        if (empty($errors)) {
+            try {
+                $user = $authService->login($_POST['username'], $_POST['password']);
+
+                if ($user) {
+                    header("Location: ?page=auth&action=profile&lang=$lang");
+                    exit;
+                } else {
+                    $errors['general'] = 'Неверное имя пользователя или пароль';
+                }
+            } catch (RuntimeException $e) {
+                $errors['general'] = $e->getMessage();
+            }
+        }
+
+        $authData = new AuthData(
+            translator: $this->container->get('localized_content'),
+            lang_code: $lang,
+            action: 'login',
+            errors: $errors,
+            oldInput: $oldInput
+        );
+
+        return $this->renderPage('auth_form.php', $authData, $page, $lang);
+    }
+
+    private function processRegister(string $page, string $lang): string
+    {
+        $authService = $this->container->get('auth_service');
+        $captchaService = $this->container->get('captcha_service');
+
+        $errors = [];
+        $oldInput = [
+            'username' => $_POST['username'] ?? '',
+            'email' => $_POST['email'] ?? ''
+        ];
+
+        // Валидация
+        if (empty($_POST['username'])) {
+            $errors['username'] = 'Введите имя пользователя';
+        }
+
+        if (empty($_POST['email'])) {
+            $errors['email'] = 'Введите email';
+        } elseif (!filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = 'Некорректный email адрес';
+        }
+
+        if (empty($_POST['password'])) {
+            $errors['password'] = 'Введите пароль';
+        } elseif (strlen($_POST['password']) < 8) {
+            $errors['password'] = 'Пароль должен быть не менее 8 символов';
+        }
+
+        if ($_POST['password'] !== ($_POST['password_confirm'] ?? '')) {
+            $errors['password_confirm'] = 'Пароли не совпадают';
+        }
+
+        if (empty($_POST['captcha'])) {
+            $errors['captcha'] = 'Введите код с картинки';
+        } elseif (!$captchaService->validate($_POST['captcha'])) {
+            $errors['captcha'] = 'Неверный код проверки';
+        }
+
+        if (empty($errors)) {
+            try {
+                $user = $authService->register(
+                    $_POST['username'],
+                    $_POST['email'],
+                    $_POST['password']
+                );
+
+                // Автоматический логин после регистрации
+                $authService->login($_POST['username'], $_POST['password']);
+
+                header("Location: ?page=auth&action=profile&lang=$lang");
+                exit;
+
+            } catch (InvalidArgumentException $e) {
+                $errors['general'] = $e->getMessage();
+            }
+        }
+
+        $authData = new AuthData(
+            translator: $this->container->get('localized_content'),
+            lang_code: $lang,
+            action: 'register',
+            errors: $errors,
+            oldInput: $oldInput
+        );
+
+        return $this->renderPage('auth_form.php', $authData, $page, $lang);
+    }
+
+    #[NoReturn] private function processLogout(string $page, string $lang): string
+    {
+        $authService = $this->container->get('auth_service');
+        $authService->logout();
+
+        header("Location: ?page=auth&action=login&lang=$lang");
+        exit;
+    }
+}
+=== Файл: ./src/Http/Controllers/ControllerInterface.php ===
+<?php
+// src/Http/Controllers/ControllerInterface.php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers;
+
+use Throwable;
+
+/**
+ * Интерфейс для контроллеров.
+ * Все контроллеры должны реализовывать этот интерфейс.
+ */
+interface ControllerInterface
+{
+    /**
+     * Обрабатывает запрос и возвращает HTML.
+     *
+     * @param string $page Имя текущей страницы
+     * @param string $lang Код языка
+     * @return string HTML-контент страницы
+     * @throws Throwable
+     */
+    public function handle(string $page, string $lang): string;
+}
+=== Файл: ./src/Http/Controllers/HomeController.php ===
+<?php
+declare(strict_types=1);
+
+// src/Http/Controllers/HomeController.php
+
+namespace App\Http\Controllers;
+
+use App\View\MainContentData;
+use Throwable;
+
+class HomeController extends AbstractController
+{
+    /**
+     * @throws Throwable
+     */
+    public function handle(string $page, string $lang): string
+    {
+        $siteData = $this->container->get('site_data');
+        $translator = $siteData['translator'];
+        $lang_code = $siteData['lang_code'];
+
+        $mainContentData = new MainContentData(translator: $translator, lang_code: $lang_code);
+
+        return $this->renderPage('main_content.php', $mainContentData, $page, $lang);
+    }
+}
+=== Файл: ./src/Http/Controllers/PrinciplesController.php ===
+<?php
+declare(strict_types=1);
+
+// src/Http/Controllers/PrinciplesController.php
+
+namespace App\Http\Controllers;
+
+use App\View\PagePrinciplesData;
+use Throwable;
+
+class PrinciplesController extends AbstractController
+{
+    /**
+     * @throws Throwable
+     */
+    public function handle(string $page, string $lang): string
+    {
+        $principles_service = $this->container->get('principles_service');
+        $principlesData = new PagePrinciplesData(translator: $principles_service, lang_code: $lang);
+
+        return $this->renderPage('page_principles.php', $principlesData, $page, $lang);
+    }
+}
+=== Файл: ./src/Http/functions.php ===
+<?php
+// src/Http/functions.php
+declare(strict_types=1);
+
+namespace App\Http;
+
+use JetBrains\PhpStorm\NoReturn;
+
+#[NoReturn]
+function sendCleanErrorPage(string $message = '', string $file = '', string $line = '', string $trace = '', bool $debugMode = false): void
+{
+
+    // Очищаем буфер вывода, если что-то уже было отправлено
+    if (ob_get_level()) {
+        ob_clean();
+    }
+
+    http_response_code(500);
+
+    header('Content-Type: text/html; charset=utf-8');
+
+    // --- КРАСИВАЯ СТРАНИЦА ОШИБКИ С ОТЛАДКОЙ ---
+    $html = '<!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Ошибка сервера</title>
+        <style>
+            body { font-family: Arial, sans-serif; background-color: #f5f5f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+            .error-container { background-color: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 800px; width: 90%; }
+            h1 { color: #d32f2f; margin-top: 0; }
+            .error-details { background-color: #f9f9f9; padding: 1rem; border-radius: 4px; margin-top: 1rem; font-family: monospace; white-space: pre-wrap; overflow-x: auto; }
+        </style>
+    </head>
+    <body>
+        <div class="error-container">
+            <h1>Произошла ошибка при генерации страницы</h1>
+            <p>Пожалуйста, сообщите об этом администратору.</p>';
+
+    if ($debugMode) {
+        $html .= '<div class="error-details">';
+        $html .= "<strong>Ошибка:</strong> " . htmlspecialchars($message) . "<br/>";
+        if ($file) {
+            $html .= "<strong>Файл:</strong> " . htmlspecialchars($file) . "<br/>";
+        }
+        if ($line) {
+            $html .= "<strong>Строка:</strong> " . htmlspecialchars($line) . "<br/>";
+        }
+        if ($trace) {
+            $html .= "<strong>Трассировка стека:</strong><br/>" . htmlspecialchars($trace);
+        }
+        $html .= '</div>';
+
+        $html .= '</div></body></html>';
+    }
+
+    echo $html;
+    exit(1);
+}
+=== Файл: ./src/Http/RequestHandler.php ===
+<?php
+declare(strict_types=1);
+
+// src/Http/RequestHandler.php
+
+namespace App\Http;
+
+use App\Infrastructure\ContainerInterface;
+use App\Http\Controllers\ControllerInterface;
+use Throwable;
+
+class RequestHandler
+{
+    private ContainerInterface $container;
+    private Router $router;
+
+    public function __construct(ContainerInterface $container)
+    {
+        $this->container = $container;
+        $this->router = $container->get('router');
+    }
+
+    public function handle(): void
+    {
+        try {
+            // --- РАЗРЕШАЕМ маршрут через роутер ---
+            $resolved = $this->router->resolve();
+
+            /** @var ControllerInterface $controller */
+            $controller = $resolved['controller'];
+            $action = $resolved['action'];
+            $lang = $resolved['lang'];
+            $page = $resolved['page'];
+
+            // --- Вызов контроллера ---
+            $response = $controller->$action($page, $lang);
+
+            // --- Вывод результата ---
+            echo $response;
+        } catch (RouterException $e) {
+            $config = $this->container->get('config');
+            $debugMode = $config['app']['debug'] ?? false;
+            error_log("Router Exception in RequestHandler: " . $e->getMessage());
+            sendCleanErrorPage($e->getMessage(), $e->getFile(), (string) $e->getLine(), $e->getTraceAsString(), $debugMode);
+        } catch (Throwable $e) {
+            $config = $this->container->get('config');
+            $debugMode = $config['app']['debug'] ?? false;
+            error_log("General Exception in RequestHandler: " . $e->getMessage());
+            sendCleanErrorPage($e->getMessage(), $e->getFile(), (string) $e->getLine(), $e->getTraceAsString(), $debugMode);
+        }
+    }
+}
+=== Файл: ./src/Http/Router.php ===
+<?php
+declare(strict_types=1);
+
+// src/Http/Router.php
+
+namespace App\Http;
+
+use App\Infrastructure\ContainerInterface;
+use App\Http\Controllers\ControllerInterface;
+
+class Router
+{
+    private array $routes = [];
+    private ContainerInterface $container;
+
+    public function __construct(ContainerInterface $container)
+    {
+        $this->container = $container;
+    }
+
+    /**
+     * Регистрирует новый маршрут.
+     *
+     * @param string $page Название страницы (например, 'home', 'about')
+     * @param string $controllerClass Полное имя класса контроллера
+     * @param string $action Метод контроллера для вызова (по умолчанию 'handle')
+     * @return void
+     */
+    public function addRoute(string $page, string $controllerClass, string $action = 'handle'): void
+    {
+        $this->routes[$page] = [
+            'controller_class' => $controllerClass,
+            'action' => $action,
+        ];
+    }
+
+    /**
+     * Разрешает маршрут на основе параметров запроса ($_GET).
+     * Возвращает экземпляр контроллера и имя метода для вызова.
+     *
+     * @return array ['controller' => ControllerInterface, 'action' => string]
+     * @throws RouterException Если маршрут не найден или контроллер некорректен.
+     */
+    public function resolve(): array
+    {
+        $page = $_GET['page'] ?? 'home';
+        $lang = $_GET['lang'] ?? 'ru';
+
+        // Проверка разрешенного языка (можно вынести в отдельный сервис, если используется часто)
+        $config = $this->container->get('config');
+        $allowedLanguages = $config['app']['allowed_languages'] ?? ['ru'];
+        if (!in_array($lang, $allowedLanguages, true)) {
+            $lang = $allowedLanguages[0] ?? 'ru';
+        }
+
+        // Установка языка в контейнере
+        $this->container->set('request_lang', $lang);
+
+        if (!isset($this->routes[$page])) {
+            throw new RouterException("Маршрут для страницы '$page' не найден.");
+        }
+
+        $routeConfig = $this->routes[$page];
+        $controllerClass = $routeConfig['controller_class'];
+        $action = $routeConfig['action'];
+
+        // Получаем контроллер из контейнера
+        $controller = $this->container->get($controllerClass);
+
+        // Проверяем, что контроллер реализует нужный интерфейс
+        if (!$controller instanceof ControllerInterface) {
+            throw new RouterException("Контроллер '$controllerClass' должен реализовывать интерфейс ControllerInterface.");
+        }
+
+        // Проверяем, что метод существует
+        if (!method_exists($controller, $action)) {
+            throw new RouterException("Метод '$action' не найден в контроллере '$controllerClass'.");
+        }
+
+        return [
+            'controller' => $controller,
+            'action' => $action,
+            'lang' => $lang, // Передаём язык, он нужен для вызова метода контроллера
+            'page' => $page  // Передаём page, он тоже может понадобиться
+        ];
+    }
+}
+=== Файл: ./src/Http/RouterException.php ===
+<?php
+// src/Http/RouterException.php
+
+declare(strict_types=1);
+
+namespace App\Http;
+
+use Exception;
+
+class RouterException extends Exception
+{
+    // Конструктор наследуется, можно оставить пустым или добавить логику
+}
+=== Файл: ./src/Http/ViewRenderer.php ===
+<?php
+// src/Http/ViewRenderer.php
+declare(strict_types=1);
+
+namespace App\Http;
+
+use App\View\TemplateDataInterface;
+
+class ViewRenderer
+{
+private string $includesPath;
+private string $layoutFile;
+
+public function __construct(string $includesPath = null, string $layoutFile = 'layout.php')
+{
+if ($includesPath === null) {
+$includesPath = dirname(__DIR__, 2) . '/includes/';
+}
+$this->includesPath = rtrim($includesPath, '/\\') . '/';
+
+$this->layoutFile = $this->includesPath . $layoutFile;
+
+if (!file_exists($this->layoutFile)) {
+error_log("DEBUG: Looking for layout file at: " . $this->layoutFile);
+throw new \InvalidArgumentException("Layout file not found: {$this->layoutFile}");
+}
+}
+
+/**
+* Рендерит шаблон и оборачивает его в layout.
+*/
+public function render(string $templateName, TemplateDataInterface $data, array $layoutData = []): string
+{
+$contentHtml = $this->renderTemplate($templateName, $data);
+
+// Рендерим layout, передав ему $contentHtml и $layoutData
+// Используем extract для передачи переменных в layout
+$contentHtml_for_layout = $contentHtml; // чтобы не конфликтовало с $contentHtml внутри ob
+$layoutData['contentHtml'] = $contentHtml_for_layout;
+
+ob_start();
+try {
+// Передаем данные в layout через extract
+extract($layoutData, EXTR_OVERWRITE);
+include $this->layoutFile;
+} catch (\Throwable $e) {
+ob_end_clean();
+throw $e;
+}
+return ob_get_clean();
+}
+
+/**
+* Рендерит *только* шаблон, без layout.
+* Используется для рендеринга компонентов внутри layout.
+*/
+public function renderWithoutLayout(string $templateName, TemplateDataInterface $data): string
+{
+return $this->renderTemplate($templateName, $data);
+}
+
+/**
+* Внутренний метод для рендеринга шаблона.
+*/
+private function renderTemplate(string $templateName, TemplateDataInterface $data): string
+{
+$templateFile = $this->includesPath . $templateName;
+
+$realTemplateFile = realpath($templateFile);
+$realBasePath = realpath($this->includesPath);
+
+if (!$realTemplateFile || !$realBasePath || !str_starts_with($realTemplateFile, $realBasePath)) {
+throw new \InvalidArgumentException("Invalid template path: $templateFile");
+}
+
+ob_start();
+try {
+// Передаем данные в шаблон через переменную $data
+include $realTemplateFile;
+} catch (\Throwable $e) {
+ob_end_clean();
+throw $e;
+}
+return ob_get_clean();
+}
+}
+=== Файл: ./src/Infrastructure/Auth/DatabaseUserRepository.php ===
+<?php
+declare(strict_types=1);
+// src/Infrastructure/Auth/DatabaseUserRepository.php
+
+namespace App\Infrastructure\Auth;
+
+use App\Domain\Auth\User;
+use App\Domain\Auth\UserRepositoryInterface;
+use DateTimeImmutable;
+use Exception;
+use PDO;
+
+class DatabaseUserRepository implements UserRepositoryInterface
+{
+    public function __construct(private readonly PDO $pdo) {}
+
+    /**
+     * @throws Exception
+     */
+    public function findById(int $id): ?User
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT id, username, email, password_hash, role, is_active, created_at, updated_at, last_login 
+            FROM users WHERE id = ?
+        ");
+        $stmt->execute([$id]);
+        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $data ? $this->hydrateUser($data) : null;
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function findByUsername(string $username): ?User
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT id, username, email, password_hash, role, is_active, created_at, updated_at, last_login 
+            FROM users WHERE username = ? AND is_active = TRUE
+        ");
+        $stmt->execute([$username]);
+        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $data ? $this->hydrateUser($data) : null;
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function findByEmail(string $email): ?User
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT id, username, email, password_hash, role, is_active, created_at, updated_at, last_login 
+            FROM users WHERE email = ? AND is_active = TRUE
+        ");
+        $stmt->execute([$email]);
+        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $data ? $this->hydrateUser($data) : null;
+    }
+
+    public function save(User $user): void
+    {
+        if ($user->id === null) {
+            $this->insert($user);
+        } else {
+            $this->update($user);
+        }
+    }
+
+    public function updateLastLogin(int $userId): void
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
+        ");
+        $stmt->execute([$userId]);
+    }
+
+    private function insert(User $user): void
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO users (username, email, password_hash, role, is_active) 
+            VALUES (?, ?, ?, ?, ?)
+        ");
+
+        $stmt->execute([
+            $user->username,
+            $user->email,
+            $user->passwordHash,
+            $user->role,
+            $user->isActive ? 1 : 0
+        ]);
+    }
+
+    private function update(User $user): void
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE users 
+            SET username = ?, email = ?, password_hash = ?, role = ?, is_active = ? 
+            WHERE id = ?
+        ");
+
+        $stmt->execute([
+            $user->username,
+            $user->email,
+            $user->passwordHash,
+            $user->role,
+            $user->isActive ? 1 : 0,
+            $user->id
+        ]);
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function hydrateUser(array $data): User
+    {
+        return new User(
+            (int) $data['id'],
+            $data['username'],
+            $data['email'],
+            $data['password_hash'],
+            $data['role'],
+            (bool) $data['is_active'],
+            new DateTimeImmutable($data['created_at']),
+            $data['updated_at'] ? new DateTimeImmutable($data['updated_at']) : null,
+            $data['last_login'] ? new DateTimeImmutable($data['last_login']) : null
+        );
+    }
+}
+=== Файл: ./src/Infrastructure/Auth/FileBasedUserRepository.php ===
+<?php
+declare(strict_types=1);
+// src/Infrastructure/Auth/FileBasedUserRepository.php
+
+namespace App\Infrastructure\Auth;
+
+use App\Domain\Auth\User;
+use App\Domain\Auth\UserRepositoryInterface;
+
+class FileBasedUserRepository implements UserRepositoryInterface
+{
+    private string $storagePath;
+    private array $users = [];
+
+    public function __construct(string $storagePath = __DIR__ . '/../../../storage/users.json')
+    {
+        $this->storagePath = $storagePath;
+        $this->loadUsers();
+    }
+
+    public function findById(int $id): ?User
+    {
+        return $this->users[$id] ?? null;
+    }
+
+    public function findByUsername(string $username): ?User
+    {
+        foreach ($this->users as $user) {
+            if ($user->username === $username && $user->isActive) {
+                return $user;
+            }
+        }
+        return null;
+    }
+
+    public function findByEmail(string $email): ?User
+    {
+        foreach ($this->users as $user) {
+            if ($user->email === $email && $user->isActive) {
+                return $user;
+            }
+        }
+        return null;
+    }
+
+    public function save(User $user): void
+    {
+        if ($user->id === null) {
+            $user = new User(
+                $this->getNextId(),
+                $user->username,
+                $user->email,
+                $user->passwordHash,
+                $user->role,
+                $user->isActive,
+                $user->createdAt,
+                new \DateTimeImmutable(),
+                $user->lastLogin
+            );
+        }
+
+        $this->users[$user->id] = $user;
+        $this->saveUsers();
+    }
+
+    public function updateLastLogin(int $userId): void
+    {
+        if (isset($this->users[$userId])) {
+            $user = $this->users[$userId];
+            $this->users[$userId] = new User(
+                $user->id,
+                $user->username,
+                $user->email,
+                $user->passwordHash,
+                $user->role,
+                $user->isActive,
+                $user->createdAt,
+                $user->updatedAt,
+                new \DateTimeImmutable()
+            );
+            $this->saveUsers();
+        }
+    }
+
+    private function loadUsers(): void
+    {
+        if (file_exists($this->storagePath)) {
+            $data = json_decode(file_get_contents($this->storagePath), true) ?? [];
+            foreach ($data as $userData) {
+                $user = new User(
+                    $userData['id'],
+                    $userData['username'],
+                    $userData['email'],
+                    $userData['passwordHash'],
+                    $userData['role'],
+                    $userData['isActive'],
+                    new \DateTimeImmutable($userData['createdAt']),
+                    $userData['updatedAt'] ? new \DateTimeImmutable($userData['updatedAt']) : null,
+                    $userData['lastLogin'] ? new \DateTimeImmutable($userData['lastLogin']) : null
+                );
+                $this->users[$user->id] = $user;
+            }
+        }
+    }
+
+    private function saveUsers(): void
+    {
+        $data = [];
+        foreach ($this->users as $user) {
+            $data[] = [
+                'id' => $user->id,
+                'username' => $user->username,
+                'email' => $user->email,
+                'passwordHash' => $user->passwordHash,
+                'role' => $user->role,
+                'isActive' => $user->isActive,
+                'createdAt' => $user->createdAt->format('c'),
+                'updatedAt' => $user->updatedAt?->format('c'),
+                'lastLogin' => $user->lastLogin?->format('c'),
+            ];
+        }
+
+        // Создаем директорию если не существует
+        $dir = dirname($this->storagePath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        file_put_contents($this->storagePath, json_encode($data, JSON_PRETTY_PRINT));
+    }
+
+    private function getNextId(): int
+    {
+        return empty($this->users) ? 1 : max(array_keys($this->users)) + 1;
+    }
+}
+=== Файл: ./src/Infrastructure/Auth/SessionAuthService.php ===
+<?php
+declare(strict_types=1);
+// src/Infrastructure/Auth/SessionAuthService.php
+
+namespace App\Infrastructure\Auth;
+
+use App\Domain\Auth\AuthServiceInterface;
+use App\Domain\Auth\User;
+use App\Domain\Auth\UserRepositoryInterface;
+use Exception;
+use RuntimeException;
+
+class SessionAuthService implements AuthServiceInterface
+{
+    private const SESSION_USER_KEY = 'auth_user_id';
+    private const MAX_LOGIN_ATTEMPTS = 5;
+    private const LOGIN_TIMEOUT = 900; // 15 minutes
+
+    public function __construct(
+        private readonly UserRepositoryInterface $userRepository
+    ) {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+    }
+
+    public function register(string $username, string $email, string $password): User
+    {
+        // Валидация
+        if (strlen($username) < 3) {
+            throw new InvalidArgumentException("Имя пользователя должно быть не менее 3 символов");
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new InvalidArgumentException("Некорректный email адрес");
+        }
+
+        if (strlen($password) < 8) {
+            throw new InvalidArgumentException("Пароль должен быть не менее 8 символов");
+        }
+
+        // Проверка уникальности
+        if ($this->userRepository->findByUsername($username)) {
+            throw new InvalidArgumentException("Пользователь с таким именем уже существует");
+        }
+
+        if ($this->userRepository->findByEmail($email)) {
+            throw new InvalidArgumentException("Пользователь с таким email уже существует");
+        }
+
+        $user = new User(
+            null,
+            $username,
+            $email,
+            $this->hashPassword($password),
+            'user',
+            true,
+            new DateTimeImmutable(),
+            null,
+            null
+        );
+
+        $this->userRepository->save($user);
+        return $user;
+    }
+
+    public function login(string $username, string $password): ?User
+    {
+        try {
+            if (!$this->checkLoginAttempts()) {
+                throw new RuntimeException("Слишком много неудачных попыток входа. Попробуйте позже.");
+            }
+
+            $user = $this->userRepository->findByUsername($username);
+
+            if ($user && $this->validatePassword($password, $user->passwordHash)) {
+                $_SESSION[self::SESSION_USER_KEY] = $user->id;
+                $this->userRepository->updateLastLogin($user->id);
+                $this->recordLoginAttempt(true);
+                return $user;
+            }
+
+            $this->recordLoginAttempt(false);
+            return null;
+        } catch (RuntimeException $e) {
+            // Перебрасываем исключения связанные с бизнес-логикой
+            throw $e;
+        } catch (Exception $e) {
+            // Логируем технические ошибки
+            error_log("Ошибка при входе пользователя: " . $e->getMessage());
+            throw new RuntimeException("Внутренняя ошибка сервера. Попробуйте позже.");
+        }
+    }
+
+    public function logout(): void
+    {
+        unset($_SESSION[self::SESSION_USER_KEY]);
+        session_destroy();
+    }
+
+    public function getCurrentUser(): ?User
+    {
+        if (!isset($_SESSION[self::SESSION_USER_KEY])) {
+            return null;
+        }
+
+        return $this->userRepository->findById($_SESSION[self::SESSION_USER_KEY]);
+    }
+
+    public function isLoggedIn(): bool
+    {
+        return $this->getCurrentUser() !== null;
+    }
+
+    public function validatePassword(string $password, string $hash): bool
+    {
+        return password_verify($password, $hash);
+    }
+
+    public function hashPassword(string $password): string
+    {
+        return password_hash($password, PASSWORD_DEFAULT);
+    }
+
+    private function checkLoginAttempts(): bool
+    {
+        // Простая реализация - можно улучшить записью в БД
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $key = 'login_attempts_' . md5($ip);
+
+        $attempts = $_SESSION[$key] ?? ['count' => 0, 'time' => time()];
+
+        // Сбрасываем счетчик если прошло больше LOGIN_TIMEOUT
+        if (time() - $attempts['time'] > self::LOGIN_TIMEOUT) {
+            $attempts = ['count' => 0, 'time' => time()];
+        }
+
+        return $attempts['count'] < self::MAX_LOGIN_ATTEMPTS;
+    }
+
+    private function recordLoginAttempt(bool $success): void
+    {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $key = 'login_attempts_' . md5($ip);
+
+        $attempts = $_SESSION[$key] ?? ['count' => 0, 'time' => time()];
+
+        if ($success) {
+            $attempts = ['count' => 0, 'time' => time()];
+        } else {
+            $attempts['count']++;
+            $attempts['time'] = time();
+        }
+
+        $_SESSION[$key] = $attempts;
+    }
+}
+=== Файл: ./src/Infrastructure/ConfigLoader.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use RuntimeException;
+
+class ConfigLoader
+{
+    private string $envLocalPath;
+    private string $envProductionPath;
+    private string $languagesPath;
+    private string $settingsPath;
+
+    public function __construct(
+        string $envLocalPath = './.env.local',
+        string $envProductionPath = './../config/.env.production',
+        string $languagesPath = './config/languages.json',
+        string $settingsPath = './config/.settings.config'
+    ) {
+        $this->envLocalPath = $envLocalPath;
+        $this->envProductionPath = $envProductionPath;
+        $this->languagesPath = $languagesPath;
+        $this->settingsPath = $settingsPath;
+    }
+
+    public function load(): array
+    {
+        // 1. Определяем окружение
+        $environmentDetector = new EnvironmentDetector();
+        $environment = $environmentDetector->detect();
+
+        // 2. Загружаем .env файл в зависимости от окружения
+        $envFile = $environment === EnvironmentDetector::ENV_PRODUCTION ? $this->envProductionPath : $this->envLocalPath;
+        new DotEnv($envFile); // Загружает переменные в $_ENV
+
+        // 3. Загружаем список поддерживаемых языков
+        $languagesData = $this->loadLanguagesData($this->languagesPath);
+
+        // 4. Загружаем настройки приложения
+        $settingsData = $this->loadSettingsData($this->settingsPath);
+
+        // 5. Собираем конфигурацию
+        return $this->buildConfig($environment, $languagesData, $settingsData);
+    }
+
+    private function loadLanguagesData(string $path): array
+    {
+        if (!file_exists($path)) {
+            throw new RuntimeException("Файл языков не найден: $path");
+        }
+        $languagesData = json_decode(file_get_contents($path), true);
+        if (!is_array($languagesData)) {
+            throw new RuntimeException("Неверный формат файла языков: $path");
+        }
+        return $languagesData;
+    }
+
+    private function loadSettingsData(string $path): array
+    {
+        $defaultSettings = [
+            'db_is_active' => true,
+            'feature_auth' => true,
+            'feature_comments' => false
+        ];
+
+        if (!file_exists($path)) {
+            error_log("Файл настроек не найден: $path. Используются настройки по умолчанию.");
+            return $defaultSettings;
+        }
+
+        $settingsContent = file_get_contents($path);
+        $settings = [];
+
+        // Парсим INI-подобный формат
+        $lines = explode("\n", $settingsContent);
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            // Пропускаем комментарии и пустые строки
+            if (empty($line) || str_starts_with($line, ';')) {
+                continue;
+            }
+
+            // Разбираем ключ=значение
+            if (str_contains($line, '=')) {
+                [$key, $value] = explode('=', $line, 2);
+                $key = trim($key);
+                $value = trim($value);
+
+                // Преобразуем булевы значения
+                if ($value === 'true') {
+                    $value = true;
+                } elseif ($value === 'false') {
+                    $value = false;
+                } elseif (is_numeric($value)) {
+                    $value = (int) $value;
+                }
+
+                $settings[$key] = $value;
+            }
+        }
+
+        return array_merge($defaultSettings, $settings);
+    }
+
+    private function sidebarConfig(): array
+    {
+        return [
+            'left' => [
+                'home' => [
+                    'widget' => 'events',
+                    'max_items' => 5
+                ],
+                'about' => [
+                    'widget' => 'timeline',
+                    'display_mode' => 'compact'
+                ],
+                'principles' => [
+                    'widget' => 'news',
+                    'max_items' => 1
+                ],
+                'contacts' => [
+                    'widget' => 'off'
+                ]
+            ],
+            'right' => [
+                'home' => [
+                    'widget' => 'news',
+                    'max_items' => 3
+                ],
+                'about' => [
+                    'widget' => 'off'
+                ],
+                'principles' => [
+                    'widget' => 'off'
+                ],
+                'contacts' => [
+                    'widget' => 'off'
+                ]
+            ]
+        ];
+    }
+
+    private function buildConfig(string $environment, array $languagesData, array $settingsData): array
+    {
+        $appDebug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        // --- ВАЛИДАЦИЯ ---
+        $requiredEnvVars = ['APP_DEBUG'];
+        $missingVars = array_filter($requiredEnvVars, fn($var) => !isset($_ENV[$var]));
+        if (!empty($missingVars)) {
+            throw new RuntimeException("Отсутствуют обязательные переменные окружения: " . implode(', ', $missingVars));
+        }
+        // --- /ВАЛИДАЦИЯ ---
+
+        return [
+            'database' => [
+                'host' => $_ENV['DB_HOST'] ?? '',
+                'port' => (int) ($_ENV['DB_PORT'] ?? '8080'),
+                'dbname' => $_ENV['DB_NAME'] ?? '',
+                'user' => $_ENV['DB_USER'] ?? '',
+                'password' => $_ENV['DB_PASS'] ?? '',
+                'is_active' => $settingsData['DB_IS_ACTIVE'] ?? true
+            ],
+            'app' => [
+                'debug' => $appDebug,
+                'environment' => $environment,
+                'allowedPages' => ['home', 'about', 'principles'],
+                'locales' => [
+                    'main'    => $_ENV['LOCALES_MAIN_PATH'] ?? './locales/main',
+                    'about'   => $_ENV['LOCALES_ABOUT_PATH'] ?? './locales/about',
+                    'events'  => $_ENV['LOCALES_EVENTS_PATH'] ?? './locales/events',
+                    'news'    => $_ENV['LOCALES_NEWS_PATH'] ?? './locales/news',
+                    'principles' => $_ENV['LOCALES_PRINCIPLES_PATH'] ?? './locales/principles',
+                    'timeline' => $_ENV['LOCALES_TIMELINE_PATH'] ?? './locales/timeline',
+                    'social' => $_ENV['LOCALES_SOCIAL_PATH'] ?? './locales/social',
+                    'telegram' => $_ENV['LOCALES_TELEGRAM_PATH'] ?? './locales/telegram',
+                ],
+                'allowed_languages' => array_keys($languagesData),
+                'languages' => $languagesData,
+                'storage_driver' => $_ENV['STORAGE_DRIVER'] ?? 'json',
+                'settings' => $settingsData
+            ],
+            'sidebars' => $this->sidebarConfig(),
+            'version' => $_ENV['SITE_VERSION'] ?? '1.0'
+        ];
+    }
+}
+=== Файл: ./src/Infrastructure/ContainerInterface.php ===
+<?php
+declare(strict_types=1);
+
+// src/Infrastructure/ContainerInterface.php
+
+namespace App\Infrastructure;
+
+interface ContainerInterface
+{
+    public function get(string $id);
+    public function has(string $id): bool;
+    public function set(string $id, $value): ContainerInterface;
+    public function factory(string $id, callable $callable): ContainerInterface;
+    public function singleton(string $id, callable $callable): ContainerInterface;
+}
+=== Файл: ./src/Infrastructure/Database/DatabaseConnectionManager.php ===
+<?php
+declare(strict_types=1);
+// src/Infrastructure/Database/DatabaseConnectionManager.php
+
+namespace App\Infrastructure\Database;
+
+use PDO;
+use RuntimeException;
+
+class DatabaseConnectionManager
+{
+    private ?PDO $connection = null;
+    private array $config;
+    private bool $isActive;
+
+    public function __construct(array $databaseConfig)
+    {
+        $this->config = $databaseConfig;
+        $this->isActive = $databaseConfig['is_active'] ?? true;
+    }
+
+    public function getConnection(): PDO
+    {
+        if (!$this->isActive) {
+            throw new RuntimeException("База данных отключена в настройках");
+        }
+
+        if ($this->connection === null) {
+            $this->connect();
+        }
+
+        return $this->connection;
+    }
+
+    public function isConnected(): bool
+    {
+        // Если БД отключена в настройках, сразу возвращаем false
+        if (!$this->isActive) {
+            return false;
+        }
+
+        try {
+            if ($this->connection === null) {
+                return false;
+            }
+
+            // Простая проверка соединения
+            $this->connection->query('SELECT 1');
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    public function isActive(): bool
+    {
+        return $this->isActive;
+    }
+
+    public function disconnect(): void
+    {
+        $this->connection = null;
+    }
+
+    private function connect(): void
+    {
+        // Дополнительная проверка на случай прямого вызова connect()
+        if (!$this->isActive) {
+            throw new RuntimeException("База данных отключена в настройках");
+        }
+
+        $dsn = "mysql:host={$this->config['host']};port={$this->config['port']};dbname={$this->config['dbname']};charset=utf8mb4";
+
+        try {
+            $this->connection = new PDO($dsn, $this->config['user'], $this->config['password'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_PERSISTENT => false,
+                PDO::ATTR_TIMEOUT => 5, // Таймаут 5 секунд
+            ]);
+        } catch (\Exception $e) {
+            throw new RuntimeException(
+                "Не удалось подключиться к базе данных: " . $e->getMessage(),
+                0,
+                $e
+            );
+        }
+    }
+}
+=== Файл: ./src/Infrastructure/Database/DatabaseHealthCheck.php ===
+<?php
+declare(strict_types=1);
+// src/Infrastructure/Database/DatabaseHealthCheck.php
+
+namespace App\Infrastructure\Database;
+
+class DatabaseHealthCheck
+{
+    public function __construct(
+        private readonly DatabaseConnectionManager $connectionManager
+    ) {}
+
+    public function isHealthy(): bool
+    {
+        // Если БД отключена в настройках, сразу возвращаем false
+        if (!$this->connectionManager->isActive()) {
+            return false;
+        }
+
+        try {
+            return $this->connectionManager->isConnected();
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    public function getLastError(): ?string
+    {
+        // Если БД отключена в настройках, возвращаем сообщение
+        if (!$this->connectionManager->isActive()) {
+            return "База данных отключена в настройках (DB_IS_ACTIVE=false)";
+        }
+
+        try {
+            $this->connectionManager->getConnection();
+            return null;
+        } catch (\Exception $e) {
+            return $e->getMessage();
+        }
+    }
+
+    public function isActive(): bool
+    {
+        return $this->connectionManager->isActive();
+    }
+}
+=== Файл: ./src/Infrastructure/DatabaseContentRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\ContentRepositoryInterface;
+use Exception;
+use PDO;
+
+class DatabaseContentRepository implements ContentRepositoryInterface
+{
+    public function __construct(private readonly PDO $pdo) {}
+
+    /**
+     * @throws Exception
+     */
+    public function get(string $lang, string $key): string|array|null
+    {
+        throw new Exception('DatabaseContentRepository::get() is not implemented yet.');
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function getAll(string $lang): array
+    {
+        throw new Exception('DatabaseContentRepository::getAll() is not implemented yet.');
+    }
+}
+=== Файл: ./src/Infrastructure/DatabaseEventsRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\EventsRepositoryInterface;
+use Exception;
+use PDO;
+
+class DatabaseEventsRepository implements EventsRepositoryInterface
+{
+    public function __construct(private readonly PDO $pdo) {}
+
+    /**
+     * @throws Exception
+     */
+    public function findByLang(string $lang): array
+    {
+        throw new Exception('DatabaseEventsRepository::findByLang() is not implemented yet.');
+    }
+}
+=== Файл: ./src/Infrastructure/DatabaseNewsRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\NewsRepositoryInterface;
+use Exception;
+use PDO;
+
+class DatabaseNewsRepository implements NewsRepositoryInterface
+{
+    public function __construct(private readonly PDO $pdo) {}
+
+    /**
+     * @throws Exception
+     */
+    public function findByLang(string $lang): array
+    {
+        throw new Exception('DatabaseNewsRepository::findByLang() is not implemented yet.');
+    }
+}
+=== Файл: ./src/Infrastructure/DatabaseSocialRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\EventsRepositoryInterface;
+use App\Domain\SocialRepositoryInterface;
+use Exception;
+use PDO;
+
+class DatabaseSocialRepository implements SocialRepositoryInterface
+{
+    public function __construct(private readonly PDO $pdo) {}
+
+    /**
+     * @throws Exception
+     */
+    public function findByLang(string $lang): array
+    {
+        throw new Exception('DatabaseSocialRepository::findByLang() is not implemented yet.');
+    }
+
+    public function getWidgetData(string $lang): array
+    {
+        // TODO: Implement getWidgetData() method.
+    }
+}
+=== Файл: ./src/Infrastructure/DatabaseTimelineRepository.php ===
+<?php
+
+namespace App\Infrastructure;
+
+use Exception;
+
+class DatabaseTimelineRepository
+{
+    public function __construct(private readonly PDO $pdo) {}
+
+    /**
+     * @throws Exception
+     */
+    public function findByLang(string $lang): array
+    {
+        throw new Exception('DatabaseTimelineRepository::findByLang() is not implemented yet.');
+    }
+}
+=== Файл: ./src/Infrastructure/DotEnv.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use InvalidArgumentException;
+
+class DotEnv
+{
+    public function __construct(string $path)
+    {
+        if (!file_exists($path)) {
+            throw new InvalidArgumentException("Файл .env не найден в $path");
+        }
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        foreach ($lines as $line) {
+            if (str_starts_with($line, '#')) {
+                continue;
+            }
+
+            if (trim($line) === '') {
+                continue;
+            }
+
+            $parts = explode('=', $line, 2);
+
+            if (count($parts) !== 2) {
+                error_log("Неверный формат строки в .env файле: $line");
+                continue;
+            }
+
+            [$name, $value] = $parts;
+            $name = trim($name);
+            $value = trim($value);
+
+            if ($name === '') {
+                error_log("Пустое имя переменной в .env файле: $line");
+                continue;
+            }
+
+            if (str_starts_with($value, '"') && str_ends_with($value, '"')) {
+                $value = substr($value, 1, -1);
+            } elseif (str_starts_with($value, "'") && str_ends_with($value, "'")) {
+                $value = substr($value, 1, -1);
+            }
+
+            putenv("$name=$value");
+            $_ENV[$name] = $value;
+            $_SERVER[$name] = $value;
+        }
+    }
+}
+=== Файл: ./src/Infrastructure/EnvironmentDetector.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+class EnvironmentDetector
+{
+    public const ENV_LOCAL = 'local';
+    public const ENV_PRODUCTION = 'production';
+
+    private array $productionHostPatterns;
+
+    public function __construct(array $hostPatterns = ['hoster.ru']) // Можно настроить через конструктор или конфиг
+    {
+        $this->productionHostPatterns = $hostPatterns;
+    }
+
+    public function detect(): string
+    {
+        $currentHostname = gethostname();
+
+        foreach ($this->productionHostPatterns as $pattern) {
+            if (str_ends_with($currentHostname, $pattern)) {
+                return self::ENV_PRODUCTION;
+            }
+        }
+
+        return self::ENV_LOCAL;
+    }
+}
+=== Файл: ./src/Infrastructure/JsonContentRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\ContentRepositoryInterface;
+
+class JsonContentRepository implements ContentRepositoryInterface
+{
+    public function __construct(private readonly string $localesPath) {}
+
+    public function get(string $lang, string $key): string|array|null
+    {
+        $data = $this->loadJson($lang);
+        return $data[$key] ?? null;
+    }
+
+    public function getAll(string $lang): array
+    {
+        return $this->loadJson($lang);
+    }
+
+    private function loadJson(string $lang): array
+    {
+        $file = rtrim($this->localesPath, '/\\') . "/$lang.json";
+        if (!file_exists($file)) return [];
+        $json = json_decode(file_get_contents($file), true);
+        return is_array($json) ? $json : [];
+    }
+}
+=== Файл: ./src/Infrastructure/JsonEventsRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\EventsRepositoryInterface;
+
+class JsonEventsRepository extends JsonItemsRepository implements EventsRepositoryInterface
+{
+    protected function getFallbackWidgetData(): array
+    {
+        return [
+            'widget_title' => 'Предстоящие события',
+            'no_items' => 'Пока нет предстоящих событий'
+        ];
+    }
+}
+=== Файл: ./src/Infrastructure/JsonItemsRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\ItemsRepositoryInterface;
+
+abstract class JsonItemsRepository implements ItemsRepositoryInterface
+{
+    public function __construct(private readonly string $itemsPath) {}
+
+    public function findByLang(string $lang): array
+    {
+        $lang = $lang ?? 'ru';
+        $file = $this->itemsPath . "/$lang.json";
+
+        if (!file_exists($file)) {
+            error_log("Items file not found: $file");
+            return [];
+        }
+
+        $json = file_get_contents($file);
+        $data = json_decode($json, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+            error_log("JSON decode error in $file: " . json_last_error_msg());
+            return [];
+        }
+
+        return $this->normalizeItems($data['items'] ?? []);
+    }
+
+    /**
+     * Получает метаданные виджета из конфиг-файла
+     */
+    public function getWidgetData(string $lang): array
+    {
+        $lang = $lang ?? 'ru';
+        $configFile = $this->itemsPath . "/$lang.config.json";
+
+        if (!file_exists($configFile)) {
+            return $this->getFallbackWidgetData();
+        }
+
+        $json = file_get_contents($configFile);
+        $data = json_decode($json, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+            return $this->getFallbackWidgetData();
+        }
+
+        return [
+            'widget_title' => $data['widget_title'] ?? '',
+            'no_items' => $data['no_items'] ?? ''
+        ];
+    }
+
+    /**
+     * Нормализует элементы к единой структуре
+     */
+    protected function normalizeItems(array $items): array
+    {
+        return array_map(function ($item) {
+            return [
+                'planned_date' => $item['planned_date'] ?? $item['date'] ?? null,
+                'title' => $item['title'] ?? '',
+                'description' => $item['description'] ?? '',
+                'is_active' => filter_var($item['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
+                'item_type' => $item['item_type'] ?? $item['type'] ?? 'default'
+            ];
+        }, $items);
+    }
+
+    /**
+     * Абстрактный метод для получения fallback данных (должен быть реализован в потомках)
+     */
+    abstract protected function getFallbackWidgetData(): array;
+}
+=== Файл: ./src/Infrastructure/JsonNewsRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\NewsRepositoryInterface;
+
+class JsonNewsRepository extends JsonItemsRepository implements NewsRepositoryInterface
+{
+    protected function getFallbackWidgetData(): array
+    {
+        return [
+            'widget_title' => 'Последние новости',
+            'no_items' => 'Пока нет новостей'
+        ];
+    }
+}
+=== Файл: ./src/Infrastructure/JsonSocialRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\SocialRepositoryInterface;
+
+class JsonSocialRepository implements SocialRepositoryInterface
+{
+    public function __construct(private readonly string $socialPath) {}
+
+    public function findByLang(string $lang): array
+    {
+        $lang = $lang ?? 'ru';
+        $file = $this->socialPath . "/$lang.json";
+
+        if (!file_exists($file)) {
+            return [];
+        }
+
+        $json = file_get_contents($file);
+        $data = json_decode($json, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+            return [];
+        }
+
+        return $data['networks'] ?? [];
+    }
+
+    public function getWidgetData(string $lang): array
+    {
+        $lang = $lang ?? 'ru';
+        $configFile = $this->socialPath . "/$lang.config.json";
+
+        if (!file_exists($configFile)) {
+            return [
+                'widget_title' => 'Мы в соцсетях',
+                'no_items' => 'Нет доступных соцсетей'
+            ];
+        }
+
+        $json = file_get_contents($configFile);
+        $data = json_decode($json, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+            return [
+                'widget_title' => 'Мы в соцсетях',
+                'no_items' => 'Нет доступных соцсетей'
+            ];
+        }
+
+        return [
+            'widget_title' => $data['widget_title'] ?? 'Мы в соцсетях',
+            'no_items' => $data['no_items'] ?? 'Нет доступных соцсетей'
+        ];
+    }
+}
+=== Файл: ./src/Infrastructure/JsonTelegramRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\TelegramRepositoryInterface;
+
+class JsonTelegramRepository extends JsonItemsRepository implements TelegramRepositoryInterface
+{
+    protected function getFallbackWidgetData(): array
+    {
+        return [
+            'widget_title' => 'Telegram канал',
+            'no_items' => 'Нет постов для отображения'
+        ];
+    }
+}
+=== Файл: ./src/Infrastructure/JsonTimelineRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\TimelineRepositoryInterface;
+
+class JsonTimelineRepository extends JsonItemsRepository implements TimelineRepositoryInterface
+{
+    protected function getFallbackWidgetData(): array
+    {
+        return [
+            'widget_title' => 'История развития',
+            'no_items' => 'Нет данных для отображения'
+        ];
+    }
+
+    /**
+     * Переопределяем нормализацию для таймлайна
+     */
+    protected function normalizeItems(array $items): array
+    {
+        return array_map(function ($item) {
+            return [
+                'planned_date' => $item['year'] ?? $item['planned_date'] ?? null,
+                'title' => $item['title'] ?? '',
+                'description' => $item['description'] ?? '',
+                'is_active' => true, // Для таймлайна всегда активно
+                'item_type' => $item['item_type'] ?? $item['type'] ?? 'milestone'
+            ];
+        }, $items);
+    }
+}
+=== Файл: ./src/Infrastructure/RepositoryFactory.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\ContentRepositoryInterface;
+use App\Domain\EventsRepositoryInterface;
+use App\Domain\NewsRepositoryInterface;
+use App\Domain\TimelineRepositoryInterface;
+use App\Domain\SocialRepositoryInterface;
+use App\Domain\TelegramRepositoryInterface;
+use PDO;
+
+class RepositoryFactory
+{
+    public static function createContentRepository(
+        string $driver,
+        string $localesPath,
+        ?PDO $pdo = null
+    ): ContentRepositoryInterface {
+        return match ($driver) {
+            'json' => new JsonContentRepository($localesPath),
+            'database' => new DatabaseContentRepository($pdo),
+            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+        };
+    }
+
+    public static function createEventsRepository(
+        string $driver,
+        string $eventsPath,
+        ?PDO $pdo = null
+    ): EventsRepositoryInterface {
+        return match ($driver) {
+            'json' => new JsonEventsRepository($eventsPath),
+            'database' => new DatabaseEventsRepository($pdo),
+            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+        };
+    }
+
+    public static function createNewsRepository(
+        string $driver,
+        string $newsPath,
+        ?PDO $pdo = null
+    ): NewsRepositoryInterface {
+        return match ($driver) {
+            'json' => new JsonNewsRepository($newsPath),
+            'database' => new DatabaseNewsRepository($pdo),
+            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+        };
+    }
+
+    public static function createTimelineRepository(
+        string $driver,
+        string $timelinePath,
+        ?PDO $pdo = null
+    ): TimelineRepositoryInterface {
+        return match ($driver) {
+            'json' => new JsonTimelineRepository($timelinePath),
+            'database' => new DatabaseTimelineRepository($pdo),
+            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+        };
+    }
+
+    public static function createSocialRepository(
+        string $driver,
+        string $socialPath,
+        ?PDO $pdo = null
+    ): SocialRepositoryInterface {
+        return match ($driver) {
+            'json' => new JsonSocialRepository($socialPath),
+            'database' => new DatabaseSocialRepository($pdo),
+            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+        };
+    }
+
+    public static function createTelegramRepository(
+        string $driver,
+        string $telegramPath,
+        ?PDO $pdo = null
+    ): TelegramRepositoryInterface {
+        return match ($driver) {
+            'json' => new JsonTelegramRepository($telegramPath),
+            'database' => new DatabaseTelegramRepository($pdo),
+            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+        };
+    }
+}
+=== Файл: ./src/Infrastructure/Security/CaptchaService.php ===
+<?php
+declare(strict_types=1);
+// src/Infrastructure/Security/CaptchaService.php
+
+namespace App\Infrastructure\Security;
+
+use Exception;
+
+class CaptchaService
+{
+    private const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    private const LENGTH = 6;
+
+    /**
+     * @throws Exception
+     */
+    public function generateCode(): string
+    {
+        $code = '';
+        $max = strlen(self::CHARS) - 1;
+
+        for ($i = 0; $i < self::LENGTH; $i++) {
+            $code .= self::CHARS[random_int(0, $max)];
+        }
+
+        $_SESSION['captcha_code'] = $code;
+        $_SESSION['captcha_time'] = time();
+
+        return $code;
+    }
+
+    public function generateImage(string $code): void
+    {
+        $width = 200;
+        $height = 60;
+
+        $image = imagecreate($width, $height);
+
+        // Цвета
+        $bgColor = imagecolorallocate($image, 255, 255, 255);
+        $textColor = imagecolorallocate($image, 0, 0, 0);
+        $noiseColor = imagecolorallocate($image, 200, 200, 200);
+
+        // Заполняем фон
+        imagefill($image, 0, 0, $bgColor);
+
+        // Добавляем шум
+        for ($i = 0; $i < ($width * $height) / 3; $i++) {
+            imagesetpixel($image, rand(0, $width), rand(0, $height), $noiseColor);
+        }
+
+        // Линии
+        for ($i = 0; $i < 5; $i++) {
+            imageline($image, rand(0, $width), rand(0, $height), rand(0, $width), rand(0, $height), $noiseColor);
+        }
+
+        // Текст
+        $font = 5; // Встроенный шрифт
+        $charWidth = imagefontwidth($font);
+        $textWidth = $charWidth * self::LENGTH;
+        $x = ($width - $textWidth) / 2;
+        $y = ($height - imagefontheight($font)) / 2;
+
+        for ($i = 0; $i < self::LENGTH; $i++) {
+            $char = $code[$i];
+            $angle = rand(-10, 10);
+            imagettftext($image, 20, $angle, $x + ($i * 30), $y + 10, $textColor, __DIR__ . '/arial.ttf', $char);
+        }
+
+        header('Content-Type: image/png');
+        imagepng($image);
+        imagedestroy($image);
+    }
+
+    public function validate(string $userCode): bool
+    {
+        if (!isset($_SESSION['captcha_code']) || !isset($_SESSION['captcha_time'])) {
+            return false;
+        }
+
+        $storedCode = $_SESSION['captcha_code'];
+        $captchaTime = $_SESSION['captcha_time'];
+
+        // CAPTCHA действительна 10 минут
+        if (time() - $captchaTime > 600) {
+            unset($_SESSION['captcha_code'], $_SESSION['captcha_time']);
+            return false;
+        }
+
+        // Удаляем использованную CAPTCHA
+        unset($_SESSION['captcha_code'], $_SESSION['captcha_time']);
+
+        return strtolower($userCode) === strtolower($storedCode);
+    }
+}
+=== Файл: ./src/Infrastructure/SidebarWidgetFactory.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\Sidebar\WidgetFactoryInterface;
+use App\Domain\Sidebar\SidebarWidgetInterface;
+use App\Domain\Sidebar\EventsSidebarWidget;
+use App\Domain\Sidebar\NewsSidebarWidget;
+use App\Domain\Sidebar\TimelineSidebarWidget;
+use App\Domain\Sidebar\SocialSidebarWidget;
+use App\Domain\Sidebar\TelegramSidebarWidget;
+
+class SidebarWidgetFactory implements WidgetFactoryInterface
+{
+    public function __construct(
+        private readonly ContainerInterface $container
+    ) {}
+
+    public function create(string $widgetType, array $config): ?SidebarWidgetInterface
+    {
+        return match ($widgetType) {
+            'events' => new EventsSidebarWidget(
+                $this->container->get('content_manager'),
+                $this->container->get('events_repository'),
+                $config
+            ),
+            'news' => new NewsSidebarWidget(
+                $this->container->get('content_manager'),
+                $this->container->get('news_repository'),
+                $config
+            ),
+            'timeline' => new TimelineSidebarWidget(
+                $this->container->get('timeline_repository'),
+                $config
+            ),
+            'social' => new SocialSidebarWidget(
+                $this->container->get('social_repository'),
+                $config
+            ),
+            'telegram' => new TelegramSidebarWidget(
+                $this->container->get('telegram_repository'),
+                $config
+            ),
+            default => null
+        };
+    }
+}
+=== Файл: ./src/Infrastructure/SimpleContainer.php ===
+<?php
+declare(strict_types=1);
+
+// src/Infrastructure/SimpleContainer.php
+
+namespace App\Infrastructure;
+
+class SimpleContainer implements ContainerInterface
+{
+    private array $values = [];
+    private array $factories = [];
+
+    public function get(string $id)
+    {
+        if (isset($this->values[$id])) {
+            return $this->values[$id];
+        }
+
+        if (isset($this->factories[$id])) {
+            $factory = $this->factories[$id];
+            $value = $factory($this);
+            return $value;
+        }
+
+        throw new \InvalidArgumentException("Identifier '$id' is not defined.");
+    }
+
+    public function has(string $id): bool
+    {
+        return isset($this->values[$id]) || isset($this->factories[$id]);
+    }
+
+    public function set(string $id, $value): ContainerInterface
+    {
+        $this->values[$id] = $value;
+        return $this;
+    }
+
+    public function factory(string $id, callable $callable): ContainerInterface
+    {
+        $this->factories[$id] = $callable;
+        return $this;
+    }
+
+    public function singleton(string $id, callable $callable): ContainerInterface
+    {
+        $this->factories[$id] = function (ContainerInterface $container) use ($id, $callable) {
+            if (!array_key_exists($id, $this->values)) {
+                $this->values[$id] = $callable($container);
+            }
+            return $this->values[$id];
+        };
+        return $this;
+    }
+}
+=== Файл: ./src/Services/LanguageService.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Services;
+
+class LanguageService
+{
+    /**
+     * @param array<string> $allowedLanguages Список кодов: ['ru', 'en']
+     * @param array<string, string> $languageNames Названия: ['ru' => 'Русский', ...]
+     */
+    public function __construct(
+        private readonly array $allowedLanguages,
+        private readonly array $languageNames
+    ) {}
+
+    public function validate(string $lang): string
+    {
+        return in_array($lang, $this->allowedLanguages, true) ? $lang : 'ru';
+    }
+
+    public function getAllowedLanguages(): array
+    {
+        return $this->allowedLanguages;
+    }
+
+    public function getLanguageName(string $lang): string
+    {
+        return $this->languageNames[$lang] ?? $lang;
+    }
+}
+=== Файл: ./src/View/AuthData.php ===
+<?php
+declare(strict_types=1);
+// src/View/AuthData.php
+
+namespace App\View;
+
+use App\Application\LocalizedContentService;
+use App\Domain\Auth\User;
+
+class AuthData implements TemplateDataInterface
+{
+    public function __construct(
+        public readonly LocalizedContentService $translator,
+        public readonly string $lang_code,
+        public readonly string $action,
+        public readonly ?User $user = null,
+        public readonly array $errors = [],
+        public readonly array $oldInput = []
+    ) {}
+}
+=== Файл: ./src/View/FooterData.php ===
+<?php
+declare(strict_types=1);
+// src/View/FooterData.php
+
+namespace App\View;
+
+use App\Application\LocalizedContentService;
+use App\View\TemplateDataInterface;
+class FooterData implements TemplateDataInterface
+{
+    public function __construct(
+        public readonly string $site_title,
+        public readonly LocalizedContentService $translator,
+        public readonly string $lang_code
+    ) {}
+}
+=== Файл: ./src/View/MainContentData.php ===
+<?php
+declare(strict_types=1);
+
+// src/View/MainContentData.php
+namespace App\View;
+
+use App\Application\LocalizedContentService;
+use App\View\TemplateDataInterface;
+
+class MainContentData implements TemplateDataInterface
+{
+    public function __construct(
+        public readonly LocalizedContentService $translator,
+        public readonly string $lang_code
+    ) {}
+}
+=== Файл: ./src/View/NavData.php ===
+<?php
+declare(strict_types=1);
+// src/View/NavData.php
+
+namespace App\View;
+
+use App\Application\LocalizedContentService;
+use App\Application\NavService;
+
+class NavData implements TemplateDataInterface
+{
+    public function __construct(
+        public readonly string $current_lang,
+        public readonly string $current_page,
+        public readonly LocalizedContentService $translator,
+        public readonly NavService $nav_service
+    ) {}
+}
+=== Файл: ./src/View/PageAboutData.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\View;
+
+use App\Application\LocalizedContentService;
+
+class PageAboutData implements TemplateDataInterface
+{
+    public function __construct(
+        public readonly LocalizedContentService $translator,
+        public readonly string $lang_code
+    ) {}
+}
+=== Файл: ./src/View/PagePrinciplesData.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\View;
+
+use App\Application\LocalizedContentService;
+
+class PagePrinciplesData implements TemplateDataInterface
+{
+    public function __construct(
+        public readonly LocalizedContentService $translator,
+        public readonly string $lang_code
+    ) {}
+}
+=== Файл: ./src/View/SidebarData.php ===
+<?php
+declare(strict_types=1);
+
+// src/View/SidebarData.php
+
+namespace App\View;
+
+use App\View\TemplateDataInterface;
+
+class SidebarData implements TemplateDataInterface
+{
+    public function __construct(
+        public readonly array $content,
+        public readonly string $position
+    ) {}
+}
+=== Файл: ./src/View/TemplateDataInterface.php ===
+<?php
+declare(strict_types=1);
+
+// src/View/TemplateDataInterface.php
+namespace App\View;
+
+interface TemplateDataInterface {}

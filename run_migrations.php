@@ -60,23 +60,22 @@ foreach ($pendingMigrations as $migrationFile) {
     }
 
     try {
-        $pdo->beginTransaction();
-
         $sqlContent = file_get_contents($sqlFile);
         if (empty($sqlContent)) {
             throw new Exception("Файл миграции пуст");
         }
 
+        // DDL-запросы в MySQL вызывают неявный коммит. 
+        // Транзакции PDO здесь только мешают и ломают откат.
         $pdo->exec($sqlContent);
 
-        $stmt = $pdo->prepare("INSERT INTO migrations (migration_name) VALUES (?)");
+        // INSERT IGNORE на случай, если запись уже проскочила
+        $stmt = $pdo->prepare("INSERT IGNORE INTO migrations (migration_name) VALUES (?)");
         $stmt->execute([$migrationFile]);
 
-        $pdo->commit();
         echo "success\n";
 
     } catch (Exception $e) {
-        $pdo->rollBack();
         echo "error: " . $e->getMessage() . "\n";
         exit(1);
     }

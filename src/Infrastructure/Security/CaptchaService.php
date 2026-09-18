@@ -46,25 +46,42 @@ class CaptchaService
 
         // Добавляем шум
         for ($i = 0; $i < ($width * $height) / 3; $i++) {
-            imagesetpixel($image, rand(0, $width), rand(0, $height), $noiseColor);
+            imagesetpixel($image, random_int(0, $width), random_int(0, $height), $noiseColor);
         }
 
         // Линии
         for ($i = 0; $i < 5; $i++) {
-            imageline($image, rand(0, $width), rand(0, $height), rand(0, $width), rand(0, $height), $noiseColor);
+            imageline($image, random_int(0, $width), random_int(0, $height), random_int(0, $width), random_int(0, $height), $noiseColor);
         }
 
         // Текст
-        $font = 5; // Встроенный шрифт
-        $charWidth = imagefontwidth($font);
-        $textWidth = $charWidth * self::LENGTH;
-        $x = ($width - $textWidth) / 2;
-        $y = ($height - imagefontheight($font)) / 2;
+        $fontFile = __DIR__ . '/arial.ttf';
+        $useTtf = file_exists($fontFile);
 
-        for ($i = 0; $i < self::LENGTH; $i++) {
-            $char = $code[$i];
-            $angle = rand(-10, 10);
-            imagettftext($image, 20, $angle, $x + ($i * 30), $y + 10, $textColor, __DIR__ . '/arial.ttf', $char);
+        if ($useTtf) {
+            // Используем TTF шрифт, если он есть. Приводим координаты к int для PHP 8.1+
+            $charWidth = 20; // Примерная ширина для размера 20
+            $textWidth = $charWidth * self::LENGTH;
+            $x = (int)(($width - $textWidth) / 2);
+            $y = (int)(($height - 20) / 2) + 15; // Корректировка базовой линии TTF
+
+            for ($i = 0; $i < self::LENGTH; $i++) {
+                $char = $code[$i];
+                $angle = random_int(-10, 10);
+                imagettftext($image, 20, $angle, (int)($x + ($i * $charWidth)), (int)$y, $textColor, $fontFile, $char);
+            }
+        } else {
+            // Фоллбэк на встроенный шрифт, если arial.ttf не найден
+            $font = 5;
+            $charWidth = imagefontwidth($font);
+            $textWidth = $charWidth * self::LENGTH;
+            $x = (int)(($width - $textWidth) / 2);
+            $y = (int)(($height - imagefontheight($font)) / 2);
+
+            for ($i = 0; $i < self::LENGTH; $i++) {
+                $char = $code[$i];
+                imagestring($image, $font, (int)($x + ($i * $charWidth)), (int)$y, $char, $textColor);
+            }
         }
 
         header('Content-Type: image/png');
