@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
 // src/View/AuthData.php
-
 namespace App\View;
 
 use App\Application\LocalizedContentService;
@@ -15,6 +14,7 @@ class AuthData implements TemplateDataInterface
         public readonly string $action,
         public readonly ?User $user = null,
         public readonly array $errors = [],
-        public readonly array $oldInput = []
+        public readonly array $oldInput = [],
+        public readonly string $csrf_token = ''
     ) {}
 }
