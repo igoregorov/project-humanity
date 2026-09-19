@@ -21,34 +21,31 @@ jobs:
       - name: Prepare SSH key
         run: |
           mkdir -p ~/.ssh
-          cat > ~/.ssh/deploy_key << 'EOF'
-          ${{ secrets.SSH_PRIVATE_KEY }}
-          EOF
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-
+          
           echo "Key file written. Lines:"
           wc -l ~/.ssh/deploy_key
-          echo "First line:"; head -n1 ~/.ssh/deploy_key
-          echo "Last line:"; tail -n1 ~/.ssh/deploy_key
-            
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Scan and verify server host key
         run: |
-          ssh-keyscan -t rsa "$SSH_HOST" > ~/.ssh/known_hosts
+          ssh-keyscan -t rsa,ecdsa,ed25519 "$SSH_HOST" > ~/.ssh/known_hosts 2>/dev/null
           ssh-keygen -l -f ~/.ssh/known_hosts
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
 
       - name: Test SSH connection with verbose debug output
         run: |
-          echo "Initiating SSH connection..."
+          echo "Initiating SSH connection to $SSH_USER@$SSH_HOST..."
           ssh -i ~/.ssh/deploy_key \
               -o ConnectTimeout=15 \
               -o BatchMode=yes \
-              -o PubkeyAcceptedAlgorithms=+ssh-rsa \
-              -o HostKeyAlgorithms=+ssh-rsa \
+              -o StrictHostKeyChecking=accept-new \
               -v \
-              "$SSH_USER@$SSH_HOST" "echo 'Connection successful'" 2>&1 | \
-          grep -E "(debug1:|Authentication|Permission|Disconnect|sign_and_send_pubkey)"
+              "$SSH_USER@$SSH_HOST" "echo 'Connection successful. PWD: $(pwd)'" 2>&1 | \
+          grep -E "(debug1:|Authentication|Permission|Disconnect|sign_and_send_pubkey|Connection successful)"
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}

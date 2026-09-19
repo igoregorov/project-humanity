@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ master ]
+
 jobs:
   deploy:
     name: Deploy to Server
@@ -18,19 +19,40 @@ jobs:
           php-version: '8.1'
           tools: composer
 
+      - name: Cache Composer packages
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-
+
       - name: Install PHP dependencies
         run: composer install --no-dev --optimize-autoloader
 
-      - name: Deploy via rsync
+      - name: Prepare SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan "$SSH_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy via rsync
+        run: |
           rsync -avz --delete \
-            --exclude='.git' --exclude='.github' --exclude='.gitignore' --exclude='.env*' --exclude='.htaccess' \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.gitignore' \
+            --exclude='.env*' \
+            --exclude='storage/' \
+            --exclude='node_modules/' \
             -e "ssh -i ~/.ssh/deploy_key -p 22" \
-            ./ "$SSH_USER@$SSH_HOST:/storage/home/srv243698/projecthumanity.space"
+            ./ "$SSH_USER@$SSH_HOST:/var/www/vhosts/projecthumanity.space/public_html/"
+
+      - name: Run database migrations
+        run: |
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
+            "cd /var/www/vhosts/projecthumanity.space/public_html && php run_migrations.php"
 
     env:
       SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
