@@ -20,7 +20,7 @@ jobs:
           tools: composer
 
       - name: Cache Composer packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4 # Обновлено с v3 на v4, чтобы убрать варнинг про Node 20
         with:
           path: vendor
           key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
@@ -44,6 +44,7 @@ jobs:
             --exclude='.github/' \
             --exclude='.gitignore' \
             --exclude='.env*' \
+            --exclude='config/.settings.config' \
             --exclude='storage/' \
             --exclude='node_modules/' \
             -e "ssh -i ~/.ssh/deploy_key -p 22" \
