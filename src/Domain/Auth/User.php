@@ -16,7 +16,7 @@ class User
         public readonly \DateTimeImmutable $createdAt,
         public readonly ?\DateTimeImmutable $updatedAt,
         public readonly ?\DateTimeImmutable $lastLogin,
-        public readonly ?string $avatarPath = null // <-- НОВОЕ
+        public readonly ?string $avatarPath = null
     ) {}
 
     public function isAdmin(): bool
