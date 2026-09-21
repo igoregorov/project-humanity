@@ -257,4 +257,11 @@ $container->singleton('database.health_check', function ($c) {
     return new App\Infrastructure\Database\DatabaseHealthCheck($connectionManager);
 });
 
+$container->singleton('avatar_service', function ($c) {
+    $config = $c->get('config');
+    // Папка должна быть доступна по URL /avatars/
+    $uploadDir = __DIR__ . '/public/avatars';
+    return new App\Infrastructure\Security\AvatarUploadService($uploadDir, '/avatars/');
+});
+
 return $container;
