@@ -1,0 +1,27 @@
+name: 🗄 Run DB Migrations Only
+
+on:
+  workflow_dispatch: # Запускается ТОЛЬКО вручную по кнопке
+
+jobs:
+  migrate:
+    name: Apply Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Run migrations on server
+        run: |
+          echo "Подключаемся к серверу и запускаем миграции..."
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
+            "cd /var/www/vhosts/projecthumanity.space/public_html && php run_migrations.php"
+
+    env:
+      SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
