@@ -1,4 +1,3 @@
-// src/Infrastructure/Security/AvatarUploadService.php
 <?php
 declare(strict_types=1);
 
@@ -82,7 +81,7 @@ class AvatarUploadService
      */
     public function getPublicUrl(string $filename): string
     {
-        return $this->publicUrlPrefix . basename($filename);
+        return $this->publicUrlPrefix . urlencode(basename($filename));
     }
 
     private function validateUpload(array $file): void

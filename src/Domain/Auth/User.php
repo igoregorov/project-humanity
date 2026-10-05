@@ -1,4 +1,3 @@
-// src/Domain/Auth/User.php
 <?php
 declare(strict_types=1);
 

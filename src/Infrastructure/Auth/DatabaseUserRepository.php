@@ -1,4 +1,3 @@
-// src/Infrastructure/Auth/DatabaseUserRepository.php
 <?php
 declare(strict_types=1);
 
