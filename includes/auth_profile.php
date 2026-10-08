@@ -43,49 +43,58 @@ $user = $data->user;
     <div class="avatar-block">
         <h3>Аватар</h3>
 
-        <?php if ($user->hasAvatar() && $data->avatarUrl): ?>
-            <div class="avatar-preview">
-                <img src="<?= htmlspecialchars($data->avatarUrl) ?>"
-                     alt="Аватар <?= htmlspecialchars($user->username) ?>"
-                     class="avatar-image">
+        <div class="avatar-wrapper">
+            <div class="avatar-preview"
+                 title="Нажмите, чтобы загрузить новый аватар">
+
+                <?php if ($user->hasAvatar() && $data->avatarUrl): ?>
+                    <img src="<?= htmlspecialchars($data->avatarUrl) ?>"
+                         alt="Аватар <?= htmlspecialchars($user->username) ?>"
+                         class="avatar-image">
+                <?php else: ?>
+                    <div class="avatar-placeholder">
+                        <span class="avatar-placeholder-icon">📷</span>
+                        <span class="avatar-placeholder-text">Загрузить аватар</span>
+                    </div>
+                <?php endif; ?>
+
+                <div class="avatar-hover-hint">Изменить</div>
             </div>
 
             <form method="POST"
-                  action="?page=auth&action=do_delete_avatar&lang=<?= $data->lang_code ?>"
-                  class="avatar-delete-form"
-                  onsubmit="return confirm('Удалить аватар?');">
+                  action="?page=auth&action=do_upload_avatar&lang=<?= $data->lang_code ?>"
+                  enctype="multipart/form-data"
+                  class="avatar-upload-form">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($data->csrf_token) ?>">
-                <button type="submit" class="btn-secondary">Удалить аватар</button>
-            </form>
-        <?php else: ?>
-            <p><em>Аватар не загружен</em></p>
-        <?php endif; ?>
+                <input type="hidden" name="MAX_FILE_SIZE" value="<?= 20 * 1024 * 1024 ?>">
 
-        <form method="POST"
-              action="?page=auth&action=do_upload_avatar&lang=<?= $data->lang_code ?>"
-              enctype="multipart/form-data"
-              class="avatar-upload-form">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($data->csrf_token) ?>">
-            <input type="hidden" name="MAX_FILE_SIZE" value="<?= 20 * 1024 * 1024 ?>">
-
-            <div class="form-group">
-                <label for="avatar">
-                    <?= $user->hasAvatar() ? 'Заменить аватар' : 'Загрузить аватар' ?>:
-                </label>
                 <input type="file"
                        id="avatar"
                        name="avatar"
                        accept="image/jpeg,image/png,image/webp,image/gif"
-                       class="<?= isset($data->errors['avatar']) ? 'error' : '' ?>"
-                       required>
-                <small class="form-hint">Максимум 20 МБ. Форматы: JPG, PNG, WEBP, GIF.</small>
-                <?php if (isset($data->errors['avatar'])): ?>
-                    <span class="field-error"><?= htmlspecialchars($data->errors['avatar']) ?></span>
-                <?php endif; ?>
-            </div>
+                       class="avatar-file-input"
+                        <?= isset($data->errors['avatar']) ? 'aria-invalid="true"' : '' ?>>
 
-            <button type="submit" class="btn-primary">Загрузить</button>
-        </form>
+                <?php if (isset($data->errors['avatar'])): ?>
+                    <span class="field-error" style="text-align:center;display:block;margin-top:0.5rem;">
+                    <?= htmlspecialchars($data->errors['avatar']) ?>
+                </span>
+                <?php endif; ?>
+
+                <!-- Fallback, если JS отключён -->
+                <noscript>
+                    <div class="avatar-noscript-fallback">
+                        <label for="avatar" class="btn-secondary">Выбрать файл</label>
+                        <button type="submit" class="btn-primary" style="width:auto;margin-top:0;">Загрузить</button>
+                    </div>
+                </noscript>
+            </form>
+
+            <small class="form-hint">
+                Нажмите на аватар, чтобы загрузить новый.<br>
+                Максимум 20 МБ. Форматы: JPG, PNG, WEBP, GIF.
+            </small>
+        </div>
     </div>
 
     <div class="profile-actions">
