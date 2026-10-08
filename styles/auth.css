@@ -281,3 +281,179 @@
     transform: none;
     box-shadow: none;
 }
+
+/* =========================================================================
+   БЛОК АВАТАРА — клик по аватару открывает диалог загрузки
+   ========================================================================= */
+
+.avatar-block {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(76, 201, 240, 0.2);
+}
+
+.avatar-block h3 {
+    color: var(--accent);
+    text-align: center;
+    margin-bottom: 1.5rem;
+    font-size: 1.3rem;
+    letter-spacing: 0.05em;
+}
+
+.avatar-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Круглый контейнер аватара — кликабельный */
+.avatar-preview {
+    position: relative;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--accent);
+    box-shadow: 0 4px 20px rgba(76, 201, 240, 0.25);
+    background: rgba(76, 201, 240, 0.05);
+    cursor: pointer;
+    transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+    user-select: none;
+}
+
+.avatar-preview:hover {
+    box-shadow: 0 6px 28px rgba(76, 201, 240, 0.4);
+    transform: translateY(-2px);
+}
+
+.avatar-preview:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+}
+
+/* Само изображение — заполняет круг без искажений */
+.avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.4s ease;
+}
+
+.avatar-preview:hover .avatar-image {
+    transform: scale(1.05);
+}
+
+/* Hover-подсказка поверх аватара */
+.avatar-hover-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 10, 10, 0.7);
+    color: var(--accent);
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    pointer-events: none; /* клик проходит сквозь подсказку к preview */
+}
+
+.avatar-preview:hover .avatar-hover-hint {
+    opacity: 1;
+}
+
+/* Placeholder, когда аватара нет */
+.avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, rgba(76, 201, 240, 0.08), rgba(76, 201, 240, 0.02));
+}
+
+.avatar-placeholder-icon {
+    font-size: 3rem;
+    opacity: 0.5;
+}
+
+.avatar-placeholder-text {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.05em;
+}
+
+/* Скрываем нативный input file */
+.avatar-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.avatar-upload-form {
+    margin: 0;
+    padding: 0;
+}
+
+/* Подсказка под аватаром */
+.avatar-wrapper .form-hint {
+    display: block;
+    text-align: center;
+    font-size: 0.78rem;
+    opacity: 0.55;
+    font-family: 'Courier New', monospace;
+    max-width: 300px;
+    line-height: 1.4;
+}
+
+/* Fallback для пользователей без JS */
+.avatar-noscript-fallback {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 0.75rem;
+}
+
+.avatar-noscript-fallback .btn-primary {
+    width: auto;
+    margin-top: 0;
+    padding: 0.5rem 1.2rem;
+}
+
+/* =========================================================================
+   АДАПТИВНОСТЬ
+   ========================================================================= */
+@media (max-width: 768px) {
+    .avatar-preview {
+        width: 150px;
+        height: 150px;
+    }
+
+    /* На тач-устройствах нет hover — показываем подсказку постоянно,
+       но в виде лёгкого градиента снизу, чтобы не перекрывать аватар */
+    .avatar-hover-hint {
+        opacity: 0.85;
+        background: linear-gradient(
+                to top,
+                rgba(10, 10, 10, 0.85) 0%,
+                rgba(10, 10, 10, 0.4) 50%,
+                transparent 100%
+        );
+        align-items: flex-end;
+        padding-bottom: 1rem;
+        font-size: 0.8rem;
+    }
+}

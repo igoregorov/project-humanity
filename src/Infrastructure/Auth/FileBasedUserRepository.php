@@ -1,11 +1,12 @@
+// src/Infrastructure/Auth/FileBasedUserRepository.php
 <?php
 declare(strict_types=1);
-// src/Infrastructure/Auth/FileBasedUserRepository.php
 
 namespace App\Infrastructure\Auth;
 
 use App\Domain\Auth\User;
 use App\Domain\Auth\UserRepositoryInterface;
+use DateTimeImmutable;
 
 class FileBasedUserRepository implements UserRepositoryInterface
 {
@@ -54,52 +55,49 @@ class FileBasedUserRepository implements UserRepositoryInterface
                 $user->role,
                 $user->isActive,
                 $user->createdAt,
-                new \DateTimeImmutable(),
-                $user->lastLogin
+                new DateTimeImmutable(),
+                $user->lastLogin,
+                $user->avatarPath
             );
         }
-
         $this->users[$user->id] = $user;
         $this->saveUsers();
     }
 
     public function updateLastLogin(int $userId): void
     {
-        if (isset($this->users[$userId])) {
-            $user = $this->users[$userId];
-            $this->users[$userId] = new User(
-                $user->id,
-                $user->username,
-                $user->email,
-                $user->passwordHash,
-                $user->role,
-                $user->isActive,
-                $user->createdAt,
-                $user->updatedAt,
-                new \DateTimeImmutable()
-            );
-            $this->saveUsers();
+        if (!isset($this->users[$userId])) {
+            return;
         }
+        $u = $this->users[$userId];
+        $this->users[$userId] = new User(
+            $u->id, $u->username, $u->email, $u->passwordHash,
+            $u->role, $u->isActive, $u->createdAt, $u->updatedAt,
+            new DateTimeImmutable(), $u->avatarPath
+        );
+        $this->saveUsers();
     }
 
     private function loadUsers(): void
     {
-        if (file_exists($this->storagePath)) {
-            $data = json_decode(file_get_contents($this->storagePath), true) ?? [];
-            foreach ($data as $userData) {
-                $user = new User(
-                    $userData['id'],
-                    $userData['username'],
-                    $userData['email'],
-                    $userData['passwordHash'],
-                    $userData['role'],
-                    $userData['isActive'],
-                    new \DateTimeImmutable($userData['createdAt']),
-                    $userData['updatedAt'] ? new \DateTimeImmutable($userData['updatedAt']) : null,
-                    $userData['lastLogin'] ? new \DateTimeImmutable($userData['lastLogin']) : null
-                );
-                $this->users[$user->id] = $user;
-            }
+        if (!file_exists($this->storagePath)) {
+            return;
+        }
+        $data = json_decode(file_get_contents($this->storagePath), true) ?? [];
+        foreach ($data as $userData) {
+            $user = new User(
+                $userData['id'],
+                $userData['username'],
+                $userData['email'],
+                $userData['passwordHash'],
+                $userData['role'],
+                $userData['isActive'],
+                new DateTimeImmutable($userData['createdAt']),
+                isset($userData['updatedAt']) ? new DateTimeImmutable($userData['updatedAt']) : null,
+                isset($userData['lastLogin']) ? new DateTimeImmutable($userData['lastLogin']) : null,
+                $userData['avatarPath'] ?? null
+            );
+            $this->users[$user->id] = $user;
         }
     }
 
@@ -108,25 +106,23 @@ class FileBasedUserRepository implements UserRepositoryInterface
         $data = [];
         foreach ($this->users as $user) {
             $data[] = [
-                'id' => $user->id,
-                'username' => $user->username,
-                'email' => $user->email,
-                'passwordHash' => $user->passwordHash,
-                'role' => $user->role,
-                'isActive' => $user->isActive,
-                'createdAt' => $user->createdAt->format('c'),
-                'updatedAt' => $user->updatedAt?->format('c'),
-                'lastLogin' => $user->lastLogin?->format('c'),
+                'id'            => $user->id,
+                'username'      => $user->username,
+                'email'         => $user->email,
+                'passwordHash'  => $user->passwordHash,
+                'role'          => $user->role,
+                'isActive'      => $user->isActive,
+                'createdAt'     => $user->createdAt->format('c'),
+                'updatedAt'     => $user->updatedAt?->format('c'),
+                'lastLogin'     => $user->lastLogin?->format('c'),
+                'avatarPath'    => $user->avatarPath,
             ];
         }
-
-        // Создаем директорию если не существует
         $dir = dirname($this->storagePath);
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
-
-        file_put_contents($this->storagePath, json_encode($data, JSON_PRETTY_PRINT));
+        file_put_contents($this->storagePath, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 
     private function getNextId(): int

@@ -1,6 +1,5 @@
 <?php
 declare(strict_types=1);
-// src/Infrastructure/Auth/DatabaseUserRepository.php
 
 namespace App\Infrastructure\Auth;
 
@@ -12,50 +11,31 @@ use PDO;
 
 class DatabaseUserRepository implements UserRepositoryInterface
 {
+    private const USER_COLUMNS = 'id, username, email, password_hash, role, is_active, created_at, updated_at, last_login, avatar_path';
+
     public function __construct(private readonly PDO $pdo) {}
 
-    /**
-     * @throws Exception
-     */
     public function findById(int $id): ?User
     {
-        $stmt = $this->pdo->prepare("
-            SELECT id, username, email, password_hash, role, is_active, created_at, updated_at, last_login 
-            FROM users WHERE id = ?
-        ");
+        $stmt = $this->pdo->prepare("SELECT " . self::USER_COLUMNS . " FROM users WHERE id = ?");
         $stmt->execute([$id]);
         $data = $stmt->fetch(PDO::FETCH_ASSOC);
-
         return $data ? $this->hydrateUser($data) : null;
     }
 
-    /**
-     * @throws Exception
-     */
     public function findByUsername(string $username): ?User
     {
-        $stmt = $this->pdo->prepare("
-            SELECT id, username, email, password_hash, role, is_active, created_at, updated_at, last_login 
-            FROM users WHERE username = ? AND is_active = TRUE
-        ");
+        $stmt = $this->pdo->prepare("SELECT " . self::USER_COLUMNS . " FROM users WHERE username = ? AND is_active = TRUE");
         $stmt->execute([$username]);
         $data = $stmt->fetch(PDO::FETCH_ASSOC);
-
         return $data ? $this->hydrateUser($data) : null;
     }
 
-    /**
-     * @throws Exception
-     */
     public function findByEmail(string $email): ?User
     {
-        $stmt = $this->pdo->prepare("
-            SELECT id, username, email, password_hash, role, is_active, created_at, updated_at, last_login 
-            FROM users WHERE email = ? AND is_active = TRUE
-        ");
+        $stmt = $this->pdo->prepare("SELECT " . self::USER_COLUMNS . " FROM users WHERE email = ? AND is_active = TRUE");
         $stmt->execute([$email]);
         $data = $stmt->fetch(PDO::FETCH_ASSOC);
-
         return $data ? $this->hydrateUser($data) : null;
     }
 
@@ -70,49 +50,44 @@ class DatabaseUserRepository implements UserRepositoryInterface
 
     public function updateLastLogin(int $userId): void
     {
-        $stmt = $this->pdo->prepare("
-            UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
-        ");
+        $stmt = $this->pdo->prepare("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$userId]);
     }
 
     private function insert(User $user): void
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO users (username, email, password_hash, role, is_active) 
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO users (username, email, password_hash, role, is_active, avatar_path)
+            VALUES (?, ?, ?, ?, ?, ?)
         ");
-
-        $stmt->execute([
-            $user->username,
-            $user->email,
-            $user->passwordHash,
-            $user->role,
-            $user->isActive ? 1 : 0
-        ]);
-    }
-
-    private function update(User $user): void
-    {
-        $stmt = $this->pdo->prepare("
-            UPDATE users 
-            SET username = ?, email = ?, password_hash = ?, role = ?, is_active = ? 
-            WHERE id = ?
-        ");
-
         $stmt->execute([
             $user->username,
             $user->email,
             $user->passwordHash,
             $user->role,
             $user->isActive ? 1 : 0,
-            $user->id
+            $user->avatarPath,
         ]);
     }
 
-    /**
-     * @throws Exception
-     */
+    private function update(User $user): void
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE users
+            SET username = ?, email = ?, password_hash = ?, role = ?, is_active = ?, avatar_path = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([
+            $user->username,
+            $user->email,
+            $user->passwordHash,
+            $user->role,
+            $user->isActive ? 1 : 0,
+            $user->avatarPath,
+            $user->id,
+        ]);
+    }
+
     private function hydrateUser(array $data): User
     {
         return new User(
@@ -123,8 +98,9 @@ class DatabaseUserRepository implements UserRepositoryInterface
             $data['role'],
             (bool) $data['is_active'],
             new DateTimeImmutable($data['created_at']),
-            $data['updated_at'] ? new DateTimeImmutable($data['updated_at']) : null,
-            $data['last_login'] ? new DateTimeImmutable($data['last_login']) : null
+            isset($data['updated_at']) ? new DateTimeImmutable($data['updated_at']) : null,
+            isset($data['last_login']) ? new DateTimeImmutable($data['last_login']) : null,
+            $data['avatar_path'] ?? null
         );
     }
 }

@@ -1,6 +1,5 @@
 <?php
 declare(strict_types=1);
-// src/Domain/Auth/User.php
 
 namespace App\Domain\Auth;
 
@@ -15,11 +14,17 @@ class User
         public readonly bool $isActive,
         public readonly \DateTimeImmutable $createdAt,
         public readonly ?\DateTimeImmutable $updatedAt,
-        public readonly ?\DateTimeImmutable $lastLogin
+        public readonly ?\DateTimeImmutable $lastLogin,
+        public readonly ?string $avatarPath = null
     ) {}
 
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    public function hasAvatar(): bool
+    {
+        return $this->avatarPath !== null && $this->avatarPath !== '';
     }
 }
