@@ -84,7 +84,6 @@ class AuthController extends AbstractController
         }
 
         $user = $authService->getCurrentUser();
-        // Используем новый метод для сборки данных с учётом аватара
         $authData = $this->buildProfileData($lang, $user);
         return $this->renderPage('auth_profile.php', $authData, $page, $lang);
     }
@@ -228,10 +227,6 @@ class AuthController extends AbstractController
         exit;
     }
 
-    // =========================================================================
-    // НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С АВАТАРОМ
-    // =========================================================================
-
     private function processAvatarUpload(string $page, string $lang): string
     {
         $authService = $this->container->get('auth_service');
@@ -276,14 +271,14 @@ class AuthController extends AbstractController
                 $user->role,
                 $user->isActive,
                 $user->createdAt,
-                new DateTimeImmutable(), // updatedAt
+                new DateTimeImmutable(),
                 $user->lastLogin,
-                $filename                // avatarPath
+                $filename
             );
             $userRepository->save($updatedUser);
 
             $message = 'Аватар успешно загружен.';
-            $user = $userRepository->findById($user->id); // перечитываем актуальное состояние
+            $user = $userRepository->findById($user->id);
         } catch (InvalidArgumentException $e) {
             $errors['avatar'] = $e->getMessage();
         } catch (RuntimeException $e) {
@@ -345,9 +340,6 @@ class AuthController extends AbstractController
         return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
     }
 
-    /**
-     * Собирает AuthData для профиля с учётом аватара.
-     */
     private function buildProfileData(string $lang, User $user, ?string $message = null, array $errors = []): AuthData
     {
         /** @var AvatarUploadService $avatarService */
@@ -361,9 +353,9 @@ class AuthController extends AbstractController
             user: $user,
             errors: $errors,
             oldInput: [],
-            csrf_token: $this->getCsrfToken(true), // Новый токен для форм с файлами
-            avatarUrl: $avatarUrl,       // <-- Требует обновления класса AuthData
-            avatarMessage: $message      // <-- Требует обновления класса AuthData
+            csrf_token: $this->getCsrfToken(true),
+            avatarUrl: $avatarUrl,
+            avatarMessage: $message
         );
     }
 
@@ -373,10 +365,6 @@ class AuthController extends AbstractController
         $authData = $this->buildProfileData($lang, $user, $message, $errors);
         return $this->renderPage('auth_profile.php', $authData, $page, $lang);
     }
-
-    // =========================================================================
-    // CSRF: генерация и валидация (без изменений)
-    // =========================================================================
 
     private function getCsrfToken(bool $forceNew = false): string
     {

@@ -41,11 +41,8 @@ $user = $data->user;
 
     <!-- Блок аватара -->
     <div class="avatar-block">
-        <h3>Аватар</h3>
-
         <div class="avatar-wrapper">
-            <div class="avatar-preview"
-                 title="Нажмите, чтобы загрузить новый аватар">
+            <div class="avatar-preview">
 
                 <?php if ($user->hasAvatar() && $data->avatarUrl): ?>
                     <img src="<?= htmlspecialchars($data->avatarUrl) ?>"
@@ -89,11 +86,6 @@ $user = $data->user;
                     </div>
                 </noscript>
             </form>
-
-            <small class="form-hint">
-                Нажмите на аватар, чтобы загрузить новый.<br>
-                Максимум 20 МБ. Форматы: JPG, PNG, WEBP, GIF.
-            </small>
         </div>
     </div>
 

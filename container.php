@@ -259,7 +259,6 @@ $container->singleton('database.health_check', function ($c) {
 
 // Сервис загрузки аватаров
 $container->singleton('avatar_service', function ($c) {
-    // Физический путь: папка storage вне публичного доступа
     $uploadDir = __DIR__ . '/storage/avatars';
 
     // Веб-путь: через скрипт-прокладку для безопасности
