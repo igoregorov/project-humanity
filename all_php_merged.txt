@@ -1,5 +1,5 @@
 
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/app/bootstrap.php ===
+=== Файл: ./app/bootstrap.php ===
 <?php
 // app/bootstrap.php
 declare(strict_types=1);
@@ -63,7 +63,7 @@ if (!isset($container)) {
 
 // --- Возврат контейнера для использования в index.php ---
 return $container; // Вот этот return!
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/captcha.php ===
+=== Файл: ./captcha.php ===
 <?php
 // captcha.php
 declare(strict_types=1);
@@ -77,7 +77,7 @@ $captchaService = $container->get('captcha_service');
 $code = $captchaService->generateCode();
 $captchaService->generateImage($code);
 
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/check_db_status.php ===
+=== Файл: ./check_db_status.php ===
 <?php
 // check_db_status.php
 declare(strict_types=1);
@@ -107,7 +107,7 @@ try {
 } catch (Exception $e) {
     echo "Ошибка при проверке статуса: " . $e->getMessage() . "\n";
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/config.php ===
+=== Файл: ./config.php ===
 <?php
 declare(strict_types=1);
 
@@ -123,7 +123,7 @@ $configLoader = new ConfigLoader();
 $config = $configLoader->load();
 
 return $config;
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/container.php ===
+=== Файл: ./container.php ===
 <?php
 declare(strict_types=1);
 // container.php
@@ -383,20 +383,27 @@ $container->singleton('database.health_check', function ($c) {
     return new App\Infrastructure\Database\DatabaseHealthCheck($connectionManager);
 });
 
+$container->singleton('avatar_service', function ($c) {
+    $config = $c->get('config');
+    // Папка должна быть доступна по URL /avatars/
+    $uploadDir = __DIR__ . '/public/avatars';
+    return new App\Infrastructure\Security\AvatarUploadService($uploadDir, '/avatars/');
+});
+
 return $container;
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/includes/auth_form.php ===
+
+=== Файл: ./includes/auth_form.php ===
 <?php
 // includes/auth_form.php
 declare(strict_types=1);
-/** @var AuthData $data */
 
+/** @var AuthData $data */
 use App\View\AuthData;
 
 $action = $data->action;
 $errors = $data->errors;
 $oldInput = $data->oldInput;
 ?>
-
 <section class="auth-section">
     <h2><?= $action === 'login' ? 'Вход' : 'Регистрация' ?></h2>
 
@@ -405,6 +412,8 @@ $oldInput = $data->oldInput;
     <?php endif; ?>
 
     <form method="POST" action="?page=auth&action=do_<?= $action ?>&lang=<?= $data->lang_code ?>" class="auth-form">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($data->csrf_token) ?>">
+
         <div class="form-group">
             <label for="username">Имя пользователя:</label>
             <input type="text" id="username" name="username"
@@ -475,41 +484,41 @@ $oldInput = $data->oldInput;
         <?php endif; ?>
     </div>
 </section>
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/includes/auth_profile.php ===
+=== Файл: ./includes/auth_profile.php ===
+<!-- includes/auth_profile.php -->
 <?php
-// includes/auth_profile.php
 declare(strict_types=1);
-/** @var AuthData $data */
-
-use App\View\AuthData;
-
+/** @var \App\View\AuthData $data */
 $user = $data->user;
 ?>
-
 <section class="profile-section">
     <h2>Профиль пользователя</h2>
+
+    <?php if (isset($data->errors['general'])): ?>
+        <div class="error-message"><?= htmlspecialchars($data->errors['general']) ?></div>
+    <?php endif; ?>
+
+    <?php if ($data->avatarMessage): ?>
+        <div class="success-message"><?= htmlspecialchars($data->avatarMessage) ?></div>
+    <?php endif; ?>
 
     <div class="profile-info">
         <div class="profile-field">
             <label>Имя пользователя:</label>
             <span><?= htmlspecialchars($user->username) ?></span>
         </div>
-
         <div class="profile-field">
             <label>Email:</label>
             <span><?= htmlspecialchars($user->email) ?></span>
         </div>
-
         <div class="profile-field">
             <label>Роль:</label>
             <span><?= $user->isAdmin() ? 'Администратор' : 'Пользователь' ?></span>
         </div>
-
         <div class="profile-field">
             <label>Дата регистрации:</label>
             <span><?= $user->createdAt->format('d.m.Y H:i') ?></span>
         </div>
-
         <?php if ($user->lastLogin): ?>
             <div class="profile-field">
                 <label>Последний вход:</label>
@@ -518,11 +527,61 @@ $user = $data->user;
         <?php endif; ?>
     </div>
 
+    <!-- Блок аватара -->
+    <div class="avatar-block">
+        <h3>Аватар</h3>
+
+        <?php if ($user->hasAvatar() && $data->avatarUrl): ?>
+            <div class="avatar-preview">
+                <img src="<?= htmlspecialchars($data->avatarUrl) ?>"
+                     alt="Аватар <?= htmlspecialchars($user->username) ?>"
+                     class="avatar-image">
+            </div>
+
+            <form method="POST"
+                  action="?page=auth&action=do_delete_avatar&lang=<?= $data->lang_code ?>"
+                  class="avatar-delete-form"
+                  onsubmit="return confirm('Удалить аватар?');">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($data->csrf_token) ?>">
+                <button type="submit" class="btn-secondary">Удалить аватар</button>
+            </form>
+        <?php else: ?>
+            <p><em>Аватар не загружен</em></p>
+        <?php endif; ?>
+
+        <form method="POST"
+              action="?page=auth&action=do_upload_avatar&lang=<?= $data->lang_code ?>"
+              enctype="multipart/form-data"
+              class="avatar-upload-form">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($data->csrf_token) ?>">
+            <input type="hidden" name="MAX_FILE_SIZE" value="<?= 20 * 1024 * 1024 ?>">
+
+            <div class="form-group">
+                <label for="avatar">
+                    <?= $user->hasAvatar() ? 'Заменить аватар' : 'Загрузить аватар' ?>:
+                </label>
+                <input type="file"
+                       id="avatar"
+                       name="avatar"
+                       accept="image/jpeg,image/png,image/webp,image/gif"
+                       class="<?= isset($data->errors['avatar']) ? 'error' : '' ?>"
+                       required>
+                <small class="form-hint">Максимум 20 МБ. Форматы: JPG, PNG, WEBP, GIF.</small>
+                <?php if (isset($data->errors['avatar'])): ?>
+                    <span class="field-error"><?= htmlspecialchars($data->errors['avatar']) ?></span>
+                <?php endif; ?>
+            </div>
+
+            <button type="submit" class="btn-primary">Загрузить</button>
+        </form>
+    </div>
+
     <div class="profile-actions">
         <a href="?page=auth&action=logout&lang=<?= $data->lang_code ?>" class="btn-secondary">Выйти</a>
     </div>
 </section>
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/includes/footer.php ===
+
+=== Файл: ./includes/footer.php ===
 <?php
 declare(strict_types=1);
 /** @var FooterData $data */
@@ -535,7 +594,7 @@ use App\View\FooterData;
     <p><?= $data->translator->translate($data->lang_code, 'made_with') ?></p>
 </footer>
 
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/includes/helpers.php ===
+=== Файл: ./includes/helpers.php ===
 <?php
 declare(strict_types=1);
 
@@ -584,7 +643,7 @@ function sanitizeHtml(string $html): string
         $clean
     );
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/includes/layout.php ===
+=== Файл: ./includes/layout.php ===
 <?php
 // layout.php
 // Ожидаем, что $layoutData и $contentHtml будут переданы сюда из ViewRenderer
@@ -659,7 +718,7 @@ $has_right_sidebar = $layoutData['has_right_sidebar'] ?? false;
 </div>
 </body>
 </html>
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/includes/main_content.php ===
+=== Файл: ./includes/main_content.php ===
 <?php
 declare(strict_types=1);
 // main_content.php
@@ -705,7 +764,7 @@ require_once __DIR__ . '/helpers.php';
         </a>
     </p>
 </section>
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/includes/nav.php ===
+=== Файл: ./includes/nav.php ===
 <?php
 declare(strict_types=1);
 /** @var NavData $data */
@@ -737,7 +796,7 @@ use App\View\NavData;
         </a>
     <?php endif; ?>
 </nav>
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/includes/page_about.php ===
+=== Файл: ./includes/page_about.php ===
 <?php
 declare(strict_types=1);
 /** @var \App\View\PageAboutData $data */
@@ -751,7 +810,7 @@ require_once __DIR__ . '/helpers.php';
         <?= sanitizeHtml($block) ?>
     <?php endforeach; ?>
 </section>
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/includes/page_principles.php ===
+=== Файл: ./includes/page_principles.php ===
 <?php
 declare(strict_types=1);
 /** @var PagePrinciplesData $data */
@@ -770,7 +829,7 @@ require_once __DIR__ . '/helpers.php';
         <?php endforeach; ?>
     </div>
 </section>
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/includes/sidebar.php ===
+=== Файл: ./includes/sidebar.php ===
 <?php
 // includes/sidebar.php
 
@@ -884,7 +943,7 @@ $position = $data->position;
         </a>
     </div>
 <?php endif; ?>
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/index.php ===
+=== Файл: ./index.php ===
 <?php
 // index.php
 declare(strict_types=1);
@@ -904,7 +963,7 @@ try {
     $debugMode = $config['app']['debug'] ?? true;
     sendCleanErrorPage($e->getMessage(), $e->getFile(), (string) $e->getLine(), $e->getTraceAsString(), $debugMode);
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/run_migrations.php ===
+=== Файл: ./run_migrations.php ===
 <?php
 declare(strict_types=1);
 
@@ -990,7 +1049,7 @@ foreach ($pendingMigrations as $migrationFile) {
 
 echo "Все миграции успешно применены!\n";
 
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Application/ContentManager.php ===
+=== Файл: ./src/Application/ContentManager.php ===
 <?php
 declare(strict_types=1);
 
@@ -1069,7 +1128,7 @@ class ContentManager
         return array_slice($allNews, 0, $limit);
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Application/EventsService.php ===
+=== Файл: ./src/Application/EventsService.php ===
 <?php
 declare(strict_types=1);
 
@@ -1081,7 +1140,7 @@ class EventsService {
     public function __construct(private readonly EventsRepositoryInterface $repo) {}
     public function getAll(string $lang): array { return $this->repo->findByLang($lang); }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Application/LocalizedContentService.php ===
+=== Файл: ./src/Application/LocalizedContentService.php ===
 <?php
 declare(strict_types=1);
 
@@ -1111,7 +1170,7 @@ class LocalizedContentService
         return is_array($value) ? $value : $fallback;
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Application/NavService.php ===
+=== Файл: ./src/Application/NavService.php ===
 <?php
 declare(strict_types=1);
 // src/Application/NavService.php
@@ -1139,7 +1198,7 @@ class NavService
         return $authService->getCurrentUser();
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Application/NewsService.php ===
+=== Файл: ./src/Application/NewsService.php ===
 <?php
 declare(strict_types=1);
 
@@ -1151,7 +1210,7 @@ class NewsService {
     public function __construct(private readonly NewsRepositoryInterface $repo) {}
     public function getAll(string $lang): array { return $this->repo->findByLang($lang); }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Application/PageDataService.php ===
+=== Файл: ./src/Application/PageDataService.php ===
 <?php
 declare(strict_types=1);
 // src/Application/PageDataService.php
@@ -1202,7 +1261,7 @@ class PageDataService
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Application/SidebarManager.php ===
+=== Файл: ./src/Application/SidebarManager.php ===
 <?php
 declare(strict_types=1);
 
@@ -1243,7 +1302,7 @@ class SidebarManager implements SidebarManagerInterface
         return $this->sidebarConfig[$position][$page] ?? null;
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Auth/AuthServiceInterface.php ===
+=== Файл: ./src/Domain/Auth/AuthServiceInterface.php ===
 <?php
 declare(strict_types=1);
 // src/Domain/Auth/AuthServiceInterface.php
@@ -1260,10 +1319,10 @@ interface AuthServiceInterface
     public function validatePassword(string $password, string $hash): bool;
     public function hashPassword(string $password): string;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Auth/User.php ===
+=== Файл: ./src/Domain/Auth/User.php ===
+// src/Domain/Auth/User.php
 <?php
 declare(strict_types=1);
-// src/Domain/Auth/User.php
 
 namespace App\Domain\Auth;
 
@@ -1278,15 +1337,22 @@ class User
         public readonly bool $isActive,
         public readonly \DateTimeImmutable $createdAt,
         public readonly ?\DateTimeImmutable $updatedAt,
-        public readonly ?\DateTimeImmutable $lastLogin
+        public readonly ?\DateTimeImmutable $lastLogin,
+        public readonly ?string $avatarPath = null
     ) {}
 
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
     }
+
+    public function hasAvatar(): bool
+    {
+        return $this->avatarPath !== null && $this->avatarPath !== '';
+    }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Auth/UserRepositoryInterface.php ===
+
+=== Файл: ./src/Domain/Auth/UserRepositoryInterface.php ===
 <?php
 declare(strict_types=1);
 // src/Domain/Auth/UserRepositoryInterface.php
@@ -1301,7 +1367,7 @@ interface UserRepositoryInterface
     public function save(User $user): void;
     public function updateLastLogin(int $userId): void;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/ContentRepositoryInterface.php ===
+=== Файл: ./src/Domain/ContentRepositoryInterface.php ===
 <?php
 declare(strict_types=1);
 
@@ -1312,13 +1378,13 @@ interface ContentRepositoryInterface
     public function get(string $lang, string $key): string|array|null;
     public function getAll(string $lang): array;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/EventsRepositoryInterface.php ===
+=== Файл: ./src/Domain/EventsRepositoryInterface.php ===
 <?php
 declare(strict_types=1);
 
 namespace App\Domain;
 interface EventsRepositoryInterface extends RepositoryInterface {}
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/ItemsRepositoryInterface.php ===
+=== Файл: ./src/Domain/ItemsRepositoryInterface.php ===
 <?php
 declare(strict_types=1);
 
@@ -1329,7 +1395,7 @@ interface ItemsRepositoryInterface
     public function findByLang(string $lang): array;
     public function getWidgetData(string $lang): array;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/NewsRepositoryInterface.php ===
+=== Файл: ./src/Domain/NewsRepositoryInterface.php ===
 <?php
 declare(strict_types=1);
 
@@ -1338,7 +1404,7 @@ declare(strict_types=1);
 namespace App\Domain;
 
 interface NewsRepositoryInterface extends RepositoryInterface {}
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/RepositoryInterface.php ===
+=== Файл: ./src/Domain/RepositoryInterface.php ===
 <?php
 declare(strict_types=1);
 
@@ -1347,7 +1413,7 @@ interface RepositoryInterface
 {
     public function findByLang(string $lang): array;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Sidebar/AbstractSidebarWidget.php ===
+=== Файл: ./src/Domain/Sidebar/AbstractSidebarWidget.php ===
 <?php
 declare(strict_types=1);
 
@@ -1363,7 +1429,7 @@ abstract class AbstractSidebarWidget implements SidebarWidgetInterface
 
     abstract public function getContent(string $lang, array $context = []): array;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Sidebar/EventsSidebarWidget.php ===
+=== Файл: ./src/Domain/Sidebar/EventsSidebarWidget.php ===
 <?php
 declare(strict_types=1);
 
@@ -1396,7 +1462,7 @@ class EventsSidebarWidget extends AbstractSidebarWidget
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Sidebar/NewsSidebarWidget.php ===
+=== Файл: ./src/Domain/Sidebar/NewsSidebarWidget.php ===
 <?php
 declare(strict_types=1);
 
@@ -1429,7 +1495,7 @@ class NewsSidebarWidget extends AbstractSidebarWidget
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Sidebar/SidebarManagerInterface.php ===
+=== Файл: ./src/Domain/Sidebar/SidebarManagerInterface.php ===
 <?php
 declare(strict_types=1);
 
@@ -1443,7 +1509,7 @@ interface SidebarManagerInterface
     public function hasSidebar(string $position, string $page): bool;
     public function getSidebarConfig(string $position, string $page): ?array;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Sidebar/SidebarWidgetInterface.php ===
+=== Файл: ./src/Domain/Sidebar/SidebarWidgetInterface.php ===
 <?php
 declare(strict_types=1);
 
@@ -1455,7 +1521,7 @@ interface SidebarWidgetInterface
 {
     public function getContent(string $lang, array $context = []): array;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Sidebar/SocialSidebarWidget.php ===
+=== Файл: ./src/Domain/Sidebar/SocialSidebarWidget.php ===
 <?php
 declare(strict_types=1);
 
@@ -1486,7 +1552,7 @@ class SocialSidebarWidget extends AbstractSidebarWidget
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Sidebar/TeamSidebarWidget.php ===
+=== Файл: ./src/Domain/Sidebar/TeamSidebarWidget.php ===
 <?php
 declare(strict_types=1);
 
@@ -1515,7 +1581,7 @@ class TeamSidebarWidget extends AbstractSidebarWidget
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Sidebar/TelegramSidebarWidget.php ===
+=== Файл: ./src/Domain/Sidebar/TelegramSidebarWidget.php ===
 <?php
 declare(strict_types=1);
 
@@ -1547,7 +1613,7 @@ class TelegramSidebarWidget extends AbstractSidebarWidget
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Sidebar/TimelineSidebarWidget.php ===
+=== Файл: ./src/Domain/Sidebar/TimelineSidebarWidget.php ===
 <?php
 declare(strict_types=1);
 
@@ -1578,7 +1644,7 @@ class TimelineSidebarWidget extends AbstractSidebarWidget
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/Sidebar/WidgetFactoryInterface.php ===
+=== Файл: ./src/Domain/Sidebar/WidgetFactoryInterface.php ===
 <?php
 declare(strict_types=1);
 
@@ -1590,27 +1656,27 @@ interface WidgetFactoryInterface
 {
     public function create(string $widgetType, array $config): ?SidebarWidgetInterface;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/SocialRepositoryInterface.php ===
+=== Файл: ./src/Domain/SocialRepositoryInterface.php ===
 <?php
 declare(strict_types=1);
 
 namespace App\Domain;
 
 interface SocialRepositoryInterface extends ItemsRepositoryInterface {}
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/TelegramRepositoryInterface.php ===
+=== Файл: ./src/Domain/TelegramRepositoryInterface.php ===
 <?php
 declare(strict_types=1);
 
 namespace App\Domain;
 
 interface TelegramRepositoryInterface extends RepositoryInterface {}
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Domain/TimelineRepositoryInterface.php ===
+=== Файл: ./src/Domain/TimelineRepositoryInterface.php ===
 <?php
 
 namespace App\Domain;
 
 interface TimelineRepositoryInterface extends RepositoryInterface {}
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/Controllers/AboutController.php ===
+=== Файл: ./src/Http/Controllers/AboutController.php ===
 <?php
 declare(strict_types=1);
 
@@ -1634,7 +1700,7 @@ class AboutController extends AbstractController
         return $this->renderPage('page_about.php', $aboutData, $page, $lang);
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/Controllers/AbstractController.php ===
+=== Файл: ./src/Http/Controllers/AbstractController.php ===
 <?php
 declare(strict_types=1);
 
@@ -1699,16 +1765,18 @@ abstract class AbstractController implements ControllerInterface
             : '';
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/Controllers/AuthController.php ===
+=== Файл: ./src/Http/Controllers/AuthController.php ===
 <?php
 declare(strict_types=1);
 // src/Http/Controllers/AuthController.php
-
 namespace App\Http\Controllers;
 
 use App\Domain\Auth\AuthServiceInterface;
+use App\Domain\Auth\User; // <-- ДОБАВЛЕНО
+use App\Infrastructure\Security\AvatarUploadService; // <-- ДОБАВЛЕНО
 use App\Infrastructure\Security\CaptchaService;
 use App\View\AuthData;
+use DateTimeImmutable; // <-- ДОБАВЛЕНО
 use InvalidArgumentException;
 use JetBrains\PhpStorm\NoReturn;
 use RuntimeException;
@@ -1716,28 +1784,30 @@ use Throwable;
 
 class AuthController extends AbstractController
 {
+    private const CSRF_TOKEN_LIFETIME = 1800; // 30 минут — с запасом на раздумья
+
     /**
      * @throws Throwable
      */
     public function handle(string $page, string $lang): string
     {
         $action = $_GET['action'] ?? 'login';
-
         return match ($action) {
-            'login' => $this->showLogin($page, $lang),
-            'register' => $this->showRegister($page, $lang),
-            'profile' => $this->showProfile($page, $lang),
-            'do_login' => $this->processLogin($page, $lang),
-            'do_register' => $this->processRegister($page, $lang),
-            'logout' => $this->processLogout($page, $lang),
-            default => $this->showLogin($page, $lang)
+            'login'            => $this->showLogin($page, $lang),
+            'register'         => $this->showRegister($page, $lang),
+            'profile'          => $this->showProfile($page, $lang),
+            'do_login'         => $this->processLogin($page, $lang),
+            'do_register'      => $this->processRegister($page, $lang),
+            'do_upload_avatar' => $this->processAvatarUpload($page, $lang),   // <-- НОВОЕ
+            'do_delete_avatar' => $this->processAvatarDelete($page, $lang),   // <-- НОВОЕ
+            'logout'           => $this->processLogout($page, $lang),
+            default            => $this->showLogin($page, $lang)
         };
     }
 
     private function showLogin(string $page, string $lang): string
     {
         $authService = $this->container->get('auth_service');
-
         if ($authService->isLoggedIn()) {
             header("Location: ?page=auth&action=profile&lang=$lang");
             exit;
@@ -1748,16 +1818,15 @@ class AuthController extends AbstractController
             lang_code: $lang,
             action: 'login',
             errors: [],
-            oldInput: []
+            oldInput: [],
+            csrf_token: $this->getCsrfToken()
         );
-
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
 
     private function showRegister(string $page, string $lang): string
     {
         $authService = $this->container->get('auth_service');
-
         if ($authService->isLoggedIn()) {
             header("Location: ?page=auth&action=profile&lang=$lang");
             exit;
@@ -1768,31 +1837,23 @@ class AuthController extends AbstractController
             lang_code: $lang,
             action: 'register',
             errors: [],
-            oldInput: []
+            oldInput: [],
+            csrf_token: $this->getCsrfToken()
         );
-
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
 
     private function showProfile(string $page, string $lang): string
     {
         $authService = $this->container->get('auth_service');
-
         if (!$authService->isLoggedIn()) {
             header("Location: ?page=auth&action=login&lang=$lang");
             exit;
         }
 
         $user = $authService->getCurrentUser();
-        $authData = new AuthData(
-            translator: $this->container->get('localized_content'),
-            lang_code: $lang,
-            action: 'profile',
-            user: $user,
-            errors: [],
-            oldInput: []
-        );
-
+        // Используем новый метод для сборки данных с учётом аватара
+        $authData = $this->buildProfileData($lang, $user);
         return $this->renderPage('auth_profile.php', $authData, $page, $lang);
     }
 
@@ -1800,21 +1861,30 @@ class AuthController extends AbstractController
     {
         $authService = $this->container->get('auth_service');
         $captchaService = $this->container->get('captcha_service');
-
         $errors = [];
         $oldInput = [
             'username' => $_POST['username'] ?? ''
         ];
 
-        // Валидация
+        if (!$this->validateCsrfToken($_POST['csrf_token'] ?? '')) {
+            $errors['general'] = 'Сессия устарела. Пожалуйста, обновите страницу и попробуйте снова.';
+            $authData = new AuthData(
+                translator: $this->container->get('localized_content'),
+                lang_code: $lang,
+                action: 'login',
+                errors: $errors,
+                oldInput: $oldInput,
+                csrf_token: $this->getCsrfToken(true)
+            );
+            return $this->renderPage('auth_form.php', $authData, $page, $lang);
+        }
+
         if (empty($_POST['username'])) {
             $errors['username'] = 'Введите имя пользователя';
         }
-
         if (empty($_POST['password'])) {
             $errors['password'] = 'Введите пароль';
         }
-
         if (empty($_POST['captcha'])) {
             $errors['captcha'] = 'Введите код с картинки';
         } elseif (!$captchaService->validate($_POST['captcha'])) {
@@ -1824,7 +1894,6 @@ class AuthController extends AbstractController
         if (empty($errors)) {
             try {
                 $user = $authService->login($_POST['username'], $_POST['password']);
-
                 if ($user) {
                     header("Location: ?page=auth&action=profile&lang=$lang");
                     exit;
@@ -1841,9 +1910,9 @@ class AuthController extends AbstractController
             lang_code: $lang,
             action: 'login',
             errors: $errors,
-            oldInput: $oldInput
+            oldInput: $oldInput,
+            csrf_token: $this->getCsrfToken()
         );
-
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
 
@@ -1851,34 +1920,41 @@ class AuthController extends AbstractController
     {
         $authService = $this->container->get('auth_service');
         $captchaService = $this->container->get('captcha_service');
-
         $errors = [];
         $oldInput = [
             'username' => $_POST['username'] ?? '',
             'email' => $_POST['email'] ?? ''
         ];
 
-        // Валидация
+        if (!$this->validateCsrfToken($_POST['csrf_token'] ?? '')) {
+            $errors['general'] = 'Сессия устарела. Пожалуйста, обновите страницу и попробуйте снова.';
+            $authData = new AuthData(
+                translator: $this->container->get('localized_content'),
+                lang_code: $lang,
+                action: 'register',
+                errors: $errors,
+                oldInput: $oldInput,
+                csrf_token: $this->getCsrfToken(true)
+            );
+            return $this->renderPage('auth_form.php', $authData, $page, $lang);
+        }
+
         if (empty($_POST['username'])) {
             $errors['username'] = 'Введите имя пользователя';
         }
-
         if (empty($_POST['email'])) {
             $errors['email'] = 'Введите email';
         } elseif (!filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
             $errors['email'] = 'Некорректный email адрес';
         }
-
         if (empty($_POST['password'])) {
             $errors['password'] = 'Введите пароль';
         } elseif (strlen($_POST['password']) < 8) {
             $errors['password'] = 'Пароль должен быть не менее 8 символов';
         }
-
         if ($_POST['password'] !== ($_POST['password_confirm'] ?? '')) {
             $errors['password_confirm'] = 'Пароли не совпадают';
         }
-
         if (empty($_POST['captcha'])) {
             $errors['captcha'] = 'Введите код с картинки';
         } elseif (!$captchaService->validate($_POST['captcha'])) {
@@ -1892,13 +1968,9 @@ class AuthController extends AbstractController
                     $_POST['email'],
                     $_POST['password']
                 );
-
-                // Автоматический логин после регистрации
                 $authService->login($_POST['username'], $_POST['password']);
-
                 header("Location: ?page=auth&action=profile&lang=$lang");
                 exit;
-
             } catch (InvalidArgumentException $e) {
                 $errors['general'] = $e->getMessage();
             }
@@ -1909,22 +1981,198 @@ class AuthController extends AbstractController
             lang_code: $lang,
             action: 'register',
             errors: $errors,
-            oldInput: $oldInput
+            oldInput: $oldInput,
+            csrf_token: $this->getCsrfToken()
         );
-
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
 
-    #[NoReturn] private function processLogout(string $page, string $lang): string
+    #[NoReturn]
+    private function processLogout(string $page, string $lang): string
     {
         $authService = $this->container->get('auth_service');
         $authService->logout();
-
         header("Location: ?page=auth&action=login&lang=$lang");
         exit;
     }
+
+    // =========================================================================
+    // НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С АВАТАРОМ
+    // =========================================================================
+
+    private function processAvatarUpload(string $page, string $lang): string
+    {
+        $authService = $this->container->get('auth_service');
+        if (!$authService->isLoggedIn()) {
+            header("Location: ?page=auth&action=login&lang=$lang");
+            exit;
+        }
+
+        $user = $authService->getCurrentUser();
+        $errors = [];
+        $message = null;
+
+        if (!$this->validateCsrfToken($_POST['csrf_token'] ?? '')) {
+            $errors['general'] = 'Сессия устарела. Обновите страницу.';
+            return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
+        }
+
+        if (!isset($_FILES['avatar']) || $_FILES['avatar']['error'] === UPLOAD_ERR_NO_FILE) {
+            $errors['avatar'] = 'Выберите файл для загрузки.';
+            return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
+        }
+
+        /** @var AvatarUploadService $avatarService */
+        $avatarService = $this->container->get('avatar_service');
+        $userRepository = $this->container->get('user_repository');
+
+        try {
+            // 1. Удаляем старый аватар, если он был
+            if ($user->hasAvatar()) {
+                $avatarService->delete($user->avatarPath);
+            }
+
+            // 2. Загружаем новый
+            $filename = $avatarService->upload($_FILES['avatar'], $user->id);
+
+            // 3. Пересоздаём User (immutable entity) с новым avatarPath (10-й параметр)
+            $updatedUser = new User(
+                $user->id,
+                $user->username,
+                $user->email,
+                $user->passwordHash,
+                $user->role,
+                $user->isActive,
+                $user->createdAt,
+                new DateTimeImmutable(), // updatedAt
+                $user->lastLogin,
+                $filename                // avatarPath
+            );
+            $userRepository->save($updatedUser);
+
+            $message = 'Аватар успешно загружен.';
+            $user = $userRepository->findById($user->id); // перечитываем актуальное состояние
+        } catch (InvalidArgumentException $e) {
+            $errors['avatar'] = $e->getMessage();
+        } catch (RuntimeException $e) {
+            error_log('Avatar upload error: ' . $e->getMessage());
+            $errors['avatar'] = 'Ошибка сервера при загрузке файла.';
+        }
+
+        return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
+    }
+
+    private function processAvatarDelete(string $page, string $lang): string
+    {
+        $authService = $this->container->get('auth_service');
+        if (!$authService->isLoggedIn()) {
+            header("Location: ?page=auth&action=login&lang=$lang");
+            exit;
+        }
+
+        $user = $authService->getCurrentUser();
+        $errors = [];
+        $message = null;
+
+        if (!$this->validateCsrfToken($_POST['csrf_token'] ?? '')) {
+            $errors['general'] = 'Сессия устарела. Обновите страницу.';
+            return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
+        }
+
+        /** @var AvatarUploadService $avatarService */
+        $avatarService = $this->container->get('avatar_service');
+        $userRepository = $this->container->get('user_repository');
+
+        try {
+            if ($user->hasAvatar()) {
+                $avatarService->delete($user->avatarPath);
+            }
+
+            // Пересоздаём User с avatarPath = null
+            $updatedUser = new User(
+                $user->id,
+                $user->username,
+                $user->email,
+                $user->passwordHash,
+                $user->role,
+                $user->isActive,
+                $user->createdAt,
+                new DateTimeImmutable(),
+                $user->lastLogin,
+                null // avatarPath
+            );
+            $userRepository->save($updatedUser);
+
+            $message = 'Аватар удалён.';
+            $user = $userRepository->findById($user->id);
+        } catch (Throwable $e) {
+            error_log('Avatar delete error: ' . $e->getMessage());
+            $errors['avatar'] = 'Не удалось удалить аватар.';
+        }
+
+        return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
+    }
+
+    /**
+     * Собирает AuthData для профиля с учётом аватара.
+     */
+    private function buildProfileData(string $lang, User $user, ?string $message = null, array $errors = []): AuthData
+    {
+        /** @var AvatarUploadService $avatarService */
+        $avatarService = $this->container->get('avatar_service');
+        $avatarUrl = $user->hasAvatar() ? $avatarService->getPublicUrl($user->avatarPath) : null;
+
+        return new AuthData(
+            translator: $this->container->get('localized_content'),
+            lang_code: $lang,
+            action: 'profile',
+            user: $user,
+            errors: $errors,
+            oldInput: [],
+            csrf_token: $this->getCsrfToken(true), // Новый токен для форм с файлами
+            avatarUrl: $avatarUrl,       // <-- Требует обновления класса AuthData
+            avatarMessage: $message      // <-- Требует обновления класса AuthData
+        );
+    }
+
+    private function renderProfileWithMessages(
+        string $page, string $lang, User $user, array $errors, ?string $message
+    ): string {
+        $authData = $this->buildProfileData($lang, $user, $message, $errors);
+        return $this->renderPage('auth_profile.php', $authData, $page, $lang);
+    }
+
+    // =========================================================================
+    // CSRF: генерация и валидация (без изменений)
+    // =========================================================================
+
+    private function getCsrfToken(bool $forceNew = false): string
+    {
+        if (
+            $forceNew
+            || empty($_SESSION['csrf_token'])
+            || empty($_SESSION['csrf_token_time'])
+            || (time() - $_SESSION['csrf_token_time']) > self::CSRF_TOKEN_LIFETIME
+        ) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            $_SESSION['csrf_token_time'] = time();
+        }
+        return $_SESSION['csrf_token'];
+    }
+
+    private function validateCsrfToken(string $token): bool
+    {
+        if (empty($token) || empty($_SESSION['csrf_token'])) {
+            return false;
+        }
+        if ((time() - ($_SESSION['csrf_token_time'] ?? 0)) > self::CSRF_TOKEN_LIFETIME) {
+            return false;
+        }
+        return hash_equals($_SESSION['csrf_token'], $token);
+    }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/Controllers/ControllerInterface.php ===
+
+=== Файл: ./src/Http/Controllers/ControllerInterface.php ===
 <?php
 // src/Http/Controllers/ControllerInterface.php
 
@@ -1950,7 +2198,7 @@ interface ControllerInterface
      */
     public function handle(string $page, string $lang): string;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/Controllers/HomeController.php ===
+=== Файл: ./src/Http/Controllers/HomeController.php ===
 <?php
 declare(strict_types=1);
 
@@ -1977,7 +2225,7 @@ class HomeController extends AbstractController
         return $this->renderPage('main_content.php', $mainContentData, $page, $lang);
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/Controllers/PrinciplesController.php ===
+=== Файл: ./src/Http/Controllers/PrinciplesController.php ===
 <?php
 declare(strict_types=1);
 
@@ -2001,7 +2249,7 @@ class PrinciplesController extends AbstractController
         return $this->renderPage('page_principles.php', $principlesData, $page, $lang);
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/functions.php ===
+=== Файл: ./src/Http/functions.php ===
 <?php
 // src/Http/functions.php
 declare(strict_types=1);
@@ -2062,7 +2310,7 @@ function sendCleanErrorPage(string $message = '', string $file = '', string $lin
     echo $html;
     exit(1);
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/RequestHandler.php ===
+=== Файл: ./src/Http/RequestHandler.php ===
 <?php
 declare(strict_types=1);
 
@@ -2115,21 +2363,7 @@ class RequestHandler
         }
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/RouterException.php ===
-<?php
-// src/Http/RouterException.php
-
-declare(strict_types=1);
-
-namespace App\Http;
-
-use Exception;
-
-class RouterException extends Exception
-{
-    // Конструктор наследуется, можно оставить пустым или добавить логику
-}
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/Router.php ===
+=== Файл: ./src/Http/Router.php ===
 <?php
 declare(strict_types=1);
 
@@ -2217,7 +2451,21 @@ class Router
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Http/ViewRenderer.php ===
+=== Файл: ./src/Http/RouterException.php ===
+<?php
+// src/Http/RouterException.php
+
+declare(strict_types=1);
+
+namespace App\Http;
+
+use Exception;
+
+class RouterException extends Exception
+{
+    // Конструктор наследуется, можно оставить пустым или добавить логику
+}
+=== Файл: ./src/Http/ViewRenderer.php ===
 <?php
 // src/Http/ViewRenderer.php
 declare(strict_types=1);
@@ -2304,10 +2552,10 @@ throw $e;
 return ob_get_clean();
 }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/Auth/DatabaseUserRepository.php ===
+=== Файл: ./src/Infrastructure/Auth/DatabaseUserRepository.php ===
+// src/Infrastructure/Auth/DatabaseUserRepository.php
 <?php
 declare(strict_types=1);
-// src/Infrastructure/Auth/DatabaseUserRepository.php
 
 namespace App\Infrastructure\Auth;
 
@@ -2319,50 +2567,31 @@ use PDO;
 
 class DatabaseUserRepository implements UserRepositoryInterface
 {
+    private const USER_COLUMNS = 'id, username, email, password_hash, role, is_active, created_at, updated_at, last_login, avatar_path';
+
     public function __construct(private readonly PDO $pdo) {}
 
-    /**
-     * @throws Exception
-     */
     public function findById(int $id): ?User
     {
-        $stmt = $this->pdo->prepare("
-            SELECT id, username, email, password_hash, role, is_active, created_at, updated_at, last_login 
-            FROM users WHERE id = ?
-        ");
+        $stmt = $this->pdo->prepare("SELECT " . self::USER_COLUMNS . " FROM users WHERE id = ?");
         $stmt->execute([$id]);
         $data = $stmt->fetch(PDO::FETCH_ASSOC);
-
         return $data ? $this->hydrateUser($data) : null;
     }
 
-    /**
-     * @throws Exception
-     */
     public function findByUsername(string $username): ?User
     {
-        $stmt = $this->pdo->prepare("
-            SELECT id, username, email, password_hash, role, is_active, created_at, updated_at, last_login 
-            FROM users WHERE username = ? AND is_active = TRUE
-        ");
+        $stmt = $this->pdo->prepare("SELECT " . self::USER_COLUMNS . " FROM users WHERE username = ? AND is_active = TRUE");
         $stmt->execute([$username]);
         $data = $stmt->fetch(PDO::FETCH_ASSOC);
-
         return $data ? $this->hydrateUser($data) : null;
     }
 
-    /**
-     * @throws Exception
-     */
     public function findByEmail(string $email): ?User
     {
-        $stmt = $this->pdo->prepare("
-            SELECT id, username, email, password_hash, role, is_active, created_at, updated_at, last_login 
-            FROM users WHERE email = ? AND is_active = TRUE
-        ");
+        $stmt = $this->pdo->prepare("SELECT " . self::USER_COLUMNS . " FROM users WHERE email = ? AND is_active = TRUE");
         $stmt->execute([$email]);
         $data = $stmt->fetch(PDO::FETCH_ASSOC);
-
         return $data ? $this->hydrateUser($data) : null;
     }
 
@@ -2377,49 +2606,44 @@ class DatabaseUserRepository implements UserRepositoryInterface
 
     public function updateLastLogin(int $userId): void
     {
-        $stmt = $this->pdo->prepare("
-            UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
-        ");
+        $stmt = $this->pdo->prepare("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$userId]);
     }
 
     private function insert(User $user): void
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO users (username, email, password_hash, role, is_active) 
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO users (username, email, password_hash, role, is_active, avatar_path)
+            VALUES (?, ?, ?, ?, ?, ?)
         ");
-
-        $stmt->execute([
-            $user->username,
-            $user->email,
-            $user->passwordHash,
-            $user->role,
-            $user->isActive ? 1 : 0
-        ]);
-    }
-
-    private function update(User $user): void
-    {
-        $stmt = $this->pdo->prepare("
-            UPDATE users 
-            SET username = ?, email = ?, password_hash = ?, role = ?, is_active = ? 
-            WHERE id = ?
-        ");
-
         $stmt->execute([
             $user->username,
             $user->email,
             $user->passwordHash,
             $user->role,
             $user->isActive ? 1 : 0,
-            $user->id
+            $user->avatarPath,
         ]);
     }
 
-    /**
-     * @throws Exception
-     */
+    private function update(User $user): void
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE users
+            SET username = ?, email = ?, password_hash = ?, role = ?, is_active = ?, avatar_path = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([
+            $user->username,
+            $user->email,
+            $user->passwordHash,
+            $user->role,
+            $user->isActive ? 1 : 0,
+            $user->avatarPath,
+            $user->id,
+        ]);
+    }
+
     private function hydrateUser(array $data): User
     {
         return new User(
@@ -2430,20 +2654,23 @@ class DatabaseUserRepository implements UserRepositoryInterface
             $data['role'],
             (bool) $data['is_active'],
             new DateTimeImmutable($data['created_at']),
-            $data['updated_at'] ? new DateTimeImmutable($data['updated_at']) : null,
-            $data['last_login'] ? new DateTimeImmutable($data['last_login']) : null
+            isset($data['updated_at']) ? new DateTimeImmutable($data['updated_at']) : null,
+            isset($data['last_login']) ? new DateTimeImmutable($data['last_login']) : null,
+            $data['avatar_path'] ?? null
         );
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/Auth/FileBasedUserRepository.php ===
+
+=== Файл: ./src/Infrastructure/Auth/FileBasedUserRepository.php ===
+// src/Infrastructure/Auth/FileBasedUserRepository.php
 <?php
 declare(strict_types=1);
-// src/Infrastructure/Auth/FileBasedUserRepository.php
 
 namespace App\Infrastructure\Auth;
 
 use App\Domain\Auth\User;
 use App\Domain\Auth\UserRepositoryInterface;
+use DateTimeImmutable;
 
 class FileBasedUserRepository implements UserRepositoryInterface
 {
@@ -2492,52 +2719,49 @@ class FileBasedUserRepository implements UserRepositoryInterface
                 $user->role,
                 $user->isActive,
                 $user->createdAt,
-                new \DateTimeImmutable(),
-                $user->lastLogin
+                new DateTimeImmutable(),
+                $user->lastLogin,
+                $user->avatarPath
             );
         }
-
         $this->users[$user->id] = $user;
         $this->saveUsers();
     }
 
     public function updateLastLogin(int $userId): void
     {
-        if (isset($this->users[$userId])) {
-            $user = $this->users[$userId];
-            $this->users[$userId] = new User(
-                $user->id,
-                $user->username,
-                $user->email,
-                $user->passwordHash,
-                $user->role,
-                $user->isActive,
-                $user->createdAt,
-                $user->updatedAt,
-                new \DateTimeImmutable()
-            );
-            $this->saveUsers();
+        if (!isset($this->users[$userId])) {
+            return;
         }
+        $u = $this->users[$userId];
+        $this->users[$userId] = new User(
+            $u->id, $u->username, $u->email, $u->passwordHash,
+            $u->role, $u->isActive, $u->createdAt, $u->updatedAt,
+            new DateTimeImmutable(), $u->avatarPath
+        );
+        $this->saveUsers();
     }
 
     private function loadUsers(): void
     {
-        if (file_exists($this->storagePath)) {
-            $data = json_decode(file_get_contents($this->storagePath), true) ?? [];
-            foreach ($data as $userData) {
-                $user = new User(
-                    $userData['id'],
-                    $userData['username'],
-                    $userData['email'],
-                    $userData['passwordHash'],
-                    $userData['role'],
-                    $userData['isActive'],
-                    new \DateTimeImmutable($userData['createdAt']),
-                    $userData['updatedAt'] ? new \DateTimeImmutable($userData['updatedAt']) : null,
-                    $userData['lastLogin'] ? new \DateTimeImmutable($userData['lastLogin']) : null
-                );
-                $this->users[$user->id] = $user;
-            }
+        if (!file_exists($this->storagePath)) {
+            return;
+        }
+        $data = json_decode(file_get_contents($this->storagePath), true) ?? [];
+        foreach ($data as $userData) {
+            $user = new User(
+                $userData['id'],
+                $userData['username'],
+                $userData['email'],
+                $userData['passwordHash'],
+                $userData['role'],
+                $userData['isActive'],
+                new DateTimeImmutable($userData['createdAt']),
+                isset($userData['updatedAt']) ? new DateTimeImmutable($userData['updatedAt']) : null,
+                isset($userData['lastLogin']) ? new DateTimeImmutable($userData['lastLogin']) : null,
+                $userData['avatarPath'] ?? null
+            );
+            $this->users[$user->id] = $user;
         }
     }
 
@@ -2546,25 +2770,23 @@ class FileBasedUserRepository implements UserRepositoryInterface
         $data = [];
         foreach ($this->users as $user) {
             $data[] = [
-                'id' => $user->id,
-                'username' => $user->username,
-                'email' => $user->email,
-                'passwordHash' => $user->passwordHash,
-                'role' => $user->role,
-                'isActive' => $user->isActive,
-                'createdAt' => $user->createdAt->format('c'),
-                'updatedAt' => $user->updatedAt?->format('c'),
-                'lastLogin' => $user->lastLogin?->format('c'),
+                'id'            => $user->id,
+                'username'      => $user->username,
+                'email'         => $user->email,
+                'passwordHash'  => $user->passwordHash,
+                'role'          => $user->role,
+                'isActive'      => $user->isActive,
+                'createdAt'     => $user->createdAt->format('c'),
+                'updatedAt'     => $user->updatedAt?->format('c'),
+                'lastLogin'     => $user->lastLogin?->format('c'),
+                'avatarPath'    => $user->avatarPath,
             ];
         }
-
-        // Создаем директорию если не существует
         $dir = dirname($this->storagePath);
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
-
-        file_put_contents($this->storagePath, json_encode($data, JSON_PRETTY_PRINT));
+        file_put_contents($this->storagePath, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 
     private function getNextId(): int
@@ -2572,7 +2794,8 @@ class FileBasedUserRepository implements UserRepositoryInterface
         return empty($this->users) ? 1 : max(array_keys($this->users)) + 1;
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/Auth/SessionAuthService.php ===
+
+=== Файл: ./src/Infrastructure/Auth/SessionAuthService.php ===
 <?php
 declare(strict_types=1);
 // src/Infrastructure/Auth/SessionAuthService.php
@@ -2632,7 +2855,8 @@ class SessionAuthService implements AuthServiceInterface
             true,
             new \DateTimeImmutable(),
             null,
-            null
+	    null,
+	    null
         );
 
         $this->userRepository->save($user);
@@ -2730,7 +2954,8 @@ class SessionAuthService implements AuthServiceInterface
         $_SESSION[$key] = $attempts;
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/ConfigLoader.php ===
+
+=== Файл: ./src/Infrastructure/ConfigLoader.php ===
 <?php
 declare(strict_types=1);
 
@@ -2920,7 +3145,7 @@ class ConfigLoader
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/ContainerInterface.php ===
+=== Файл: ./src/Infrastructure/ContainerInterface.php ===
 <?php
 declare(strict_types=1);
 
@@ -2936,37 +3161,7 @@ interface ContainerInterface
     public function factory(string $id, callable $callable): ContainerInterface;
     public function singleton(string $id, callable $callable): ContainerInterface;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/DatabaseContentRepository.php ===
-<?php
-declare(strict_types=1);
-
-namespace App\Infrastructure;
-
-use App\Domain\ContentRepositoryInterface;
-use Exception;
-use PDO;
-
-class DatabaseContentRepository implements ContentRepositoryInterface
-{
-    public function __construct(private readonly PDO $pdo) {}
-
-    /**
-     * @throws Exception
-     */
-    public function get(string $lang, string $key): string|array|null
-    {
-        throw new Exception('DatabaseContentRepository::get() is not implemented yet.');
-    }
-
-    /**
-     * @throws Exception
-     */
-    public function getAll(string $lang): array
-    {
-        throw new Exception('DatabaseContentRepository::getAll() is not implemented yet.');
-    }
-}
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/Database/DatabaseConnectionManager.php ===
+=== Файл: ./src/Infrastructure/Database/DatabaseConnectionManager.php ===
 <?php
 declare(strict_types=1);
 // src/Infrastructure/Database/DatabaseConnectionManager.php
@@ -3056,7 +3251,7 @@ class DatabaseConnectionManager
         }
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/Database/DatabaseHealthCheck.php ===
+=== Файл: ./src/Infrastructure/Database/DatabaseHealthCheck.php ===
 <?php
 declare(strict_types=1);
 // src/Infrastructure/Database/DatabaseHealthCheck.php
@@ -3103,7 +3298,37 @@ class DatabaseHealthCheck
         return $this->connectionManager->isActive();
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/DatabaseEventsRepository.php ===
+=== Файл: ./src/Infrastructure/DatabaseContentRepository.php ===
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure;
+
+use App\Domain\ContentRepositoryInterface;
+use Exception;
+use PDO;
+
+class DatabaseContentRepository implements ContentRepositoryInterface
+{
+    public function __construct(private readonly PDO $pdo) {}
+
+    /**
+     * @throws Exception
+     */
+    public function get(string $lang, string $key): string|array|null
+    {
+        throw new Exception('DatabaseContentRepository::get() is not implemented yet.');
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function getAll(string $lang): array
+    {
+        throw new Exception('DatabaseContentRepository::getAll() is not implemented yet.');
+    }
+}
+=== Файл: ./src/Infrastructure/DatabaseEventsRepository.php ===
 <?php
 declare(strict_types=1);
 
@@ -3125,7 +3350,7 @@ class DatabaseEventsRepository implements EventsRepositoryInterface
         throw new Exception('DatabaseEventsRepository::findByLang() is not implemented yet.');
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/DatabaseNewsRepository.php ===
+=== Файл: ./src/Infrastructure/DatabaseNewsRepository.php ===
 <?php
 declare(strict_types=1);
 
@@ -3147,7 +3372,7 @@ class DatabaseNewsRepository implements NewsRepositoryInterface
         throw new Exception('DatabaseNewsRepository::findByLang() is not implemented yet.');
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/DatabaseSocialRepository.php ===
+=== Файл: ./src/Infrastructure/DatabaseSocialRepository.php ===
 <?php
 declare(strict_types=1);
 
@@ -3175,7 +3400,7 @@ class DatabaseSocialRepository implements SocialRepositoryInterface
         // TODO: Implement getWidgetData() method.
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/DatabaseTimelineRepository.php ===
+=== Файл: ./src/Infrastructure/DatabaseTimelineRepository.php ===
 <?php
 
 namespace App\Infrastructure;
@@ -3194,7 +3419,7 @@ class DatabaseTimelineRepository
         throw new Exception('DatabaseTimelineRepository::findByLang() is not implemented yet.');
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/DotEnv.php ===
+=== Файл: ./src/Infrastructure/DotEnv.php ===
 <?php
 declare(strict_types=1);
 
@@ -3248,7 +3473,7 @@ class DotEnv
         }
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/EnvironmentDetector.php ===
+=== Файл: ./src/Infrastructure/EnvironmentDetector.php ===
 <?php
 declare(strict_types=1);
 
@@ -3279,7 +3504,7 @@ class EnvironmentDetector
         return self::ENV_LOCAL;
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/JsonContentRepository.php ===
+=== Файл: ./src/Infrastructure/JsonContentRepository.php ===
 <?php
 declare(strict_types=1);
 
@@ -3310,7 +3535,7 @@ class JsonContentRepository implements ContentRepositoryInterface
         return is_array($json) ? $json : [];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/JsonEventsRepository.php ===
+=== Файл: ./src/Infrastructure/JsonEventsRepository.php ===
 <?php
 declare(strict_types=1);
 
@@ -3328,7 +3553,7 @@ class JsonEventsRepository extends JsonItemsRepository implements EventsReposito
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/JsonItemsRepository.php ===
+=== Файл: ./src/Infrastructure/JsonItemsRepository.php ===
 <?php
 declare(strict_types=1);
 
@@ -3407,7 +3632,7 @@ abstract class JsonItemsRepository implements ItemsRepositoryInterface
      */
     abstract protected function getFallbackWidgetData(): array;
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/JsonNewsRepository.php ===
+=== Файл: ./src/Infrastructure/JsonNewsRepository.php ===
 <?php
 declare(strict_types=1);
 
@@ -3425,7 +3650,7 @@ class JsonNewsRepository extends JsonItemsRepository implements NewsRepositoryIn
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/JsonSocialRepository.php ===
+=== Файл: ./src/Infrastructure/JsonSocialRepository.php ===
 <?php
 declare(strict_types=1);
 
@@ -3484,7 +3709,7 @@ class JsonSocialRepository implements SocialRepositoryInterface
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/JsonTelegramRepository.php ===
+=== Файл: ./src/Infrastructure/JsonTelegramRepository.php ===
 <?php
 declare(strict_types=1);
 
@@ -3502,7 +3727,7 @@ class JsonTelegramRepository extends JsonItemsRepository implements TelegramRepo
         ];
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/JsonTimelineRepository.php ===
+=== Файл: ./src/Infrastructure/JsonTimelineRepository.php ===
 <?php
 declare(strict_types=1);
 
@@ -3536,7 +3761,7 @@ class JsonTimelineRepository extends JsonItemsRepository implements TimelineRepo
         }, $items);
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/RepositoryFactory.php ===
+=== Файл: ./src/Infrastructure/RepositoryFactory.php ===
 <?php
 declare(strict_types=1);
 
@@ -3624,7 +3849,128 @@ class RepositoryFactory
         };
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/Security/CaptchaService.php ===
+=== Файл: ./src/Infrastructure/Security/AvatarUploadService.php ===
+// src/Infrastructure/Security/AvatarUploadService.php
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure\Security;
+
+use InvalidArgumentException;
+use RuntimeException;
+use finfo;
+
+class AvatarUploadService
+{
+    private const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+    private const ALLOWED_MIME = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/webp' => 'webp',
+        'image/gif'  => 'gif',
+    ];
+
+    public function __construct(
+        private readonly string $uploadDir,
+        private readonly string $publicUrlPrefix = '/avatars/'
+    ) {
+        if (!is_dir($this->uploadDir)) {
+            if (!mkdir($this->uploadDir, 0755, true) && !is_dir($this->uploadDir)) {
+                throw new RuntimeException("Не удалось создать директорию: {$this->uploadDir}");
+            }
+        }
+    }
+
+    /**
+     * Загружает аватар и возвращает имя сохранённого файла.
+     *
+     * @param array $file Массив $_FILES['avatar']
+     * @param int   $userId ID пользователя (для имени файла)
+     * @return string Имя файла (без пути)
+     * @throws InvalidArgumentException|RuntimeException
+     */
+    public function upload(array $file, int $userId): string
+    {
+        $this->validateUpload($file);
+
+        // Проверка MIME по реальному содержимому (не по расширению!)
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($file['tmp_name']);
+        if ($mime === false || !isset(self::ALLOWED_MIME[$mime])) {
+            throw new InvalidArgumentException('Недопустимый тип файла. Разрешены: JPG, PNG, WEBP, GIF.');
+        }
+
+        // Дополнительная проверка: расширение должно соответствовать MIME
+        $ext = self::ALLOWED_MIME[$mime];
+
+        // Уникальное имя: user_{id}_{random}.{ext}
+        $filename = sprintf('user_%d_%s.%s', $userId, bin2hex(random_bytes(8)), $ext);
+        $destination = rtrim($this->uploadDir, '/') . '/' . $filename;
+
+        if (!move_uploaded_file($file['tmp_name'], $destination)) {
+            throw new RuntimeException('Не удалось сохранить файл на сервере.');
+        }
+
+        return $filename;
+    }
+
+    /**
+     * Удаляет файл аватара.
+     */
+    public function delete(string $filename): void
+    {
+        if ($filename === null || $filename === '') {
+            return;
+        }
+        // basename() — защита от path traversal
+        $path = rtrim($this->uploadDir, '/') . '/' . basename($filename);
+        if (file_exists($path) && is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    /**
+     * Возвращает публичный URL для отображения.
+     */
+    public function getPublicUrl(string $filename): string
+    {
+        return $this->publicUrlPrefix . basename($filename);
+    }
+
+    private function validateUpload(array $file): void
+    {
+        if (!isset($file['error']) || is_array($file['error'])) {
+            throw new InvalidArgumentException('Некорректные параметры файла.');
+        }
+
+        switch ($file['error']) {
+            case UPLOAD_ERR_OK:
+                break;
+            case UPLOAD_ERR_INI_SIZE:
+            case UPLOAD_ERR_FORM_SIZE:
+                throw new InvalidArgumentException('Файл превышает максимально допустимый размер.');
+            case UPLOAD_ERR_PARTIAL:
+            case UPLOAD_ERR_NO_FILE:
+                throw new InvalidArgumentException('Файл не был загружен.');
+            case UPLOAD_ERR_NO_TMP_DIR:
+            case UPLOAD_ERR_CANT_WRITE:
+            case UPLOAD_ERR_EXTENSION:
+                throw new RuntimeException('Ошибка сервера при загрузке файла.');
+            default:
+                throw new RuntimeException('Неизвестная ошибка загрузки.');
+        }
+
+        if ($file['size'] === 0) {
+            throw new InvalidArgumentException('Пустой файл.');
+        }
+
+        if ($file['size'] > self::MAX_SIZE_BYTES) {
+            throw new InvalidArgumentException('Размер файла превышает 20 МБ.');
+        }
+    }
+}
+
+=== Файл: ./src/Infrastructure/Security/CaptchaService.php ===
 <?php
 declare(strict_types=1);
 // src/Infrastructure/Security/CaptchaService.php
@@ -3738,7 +4084,7 @@ class CaptchaService
     }
 }
 
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/SidebarWidgetFactory.php ===
+=== Файл: ./src/Infrastructure/SidebarWidgetFactory.php ===
 <?php
 declare(strict_types=1);
 
@@ -3787,7 +4133,7 @@ class SidebarWidgetFactory implements WidgetFactoryInterface
         };
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Infrastructure/SimpleContainer.php ===
+=== Файл: ./src/Infrastructure/SimpleContainer.php ===
 <?php
 declare(strict_types=1);
 
@@ -3843,7 +4189,7 @@ class SimpleContainer implements ContainerInterface
         return $this;
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/Services/LanguageService.php ===
+=== Файл: ./src/Services/LanguageService.php ===
 <?php
 declare(strict_types=1);
 
@@ -3875,11 +4221,10 @@ class LanguageService
         return $this->languageNames[$lang] ?? $lang;
     }
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/View/AuthData.php ===
+=== Файл: ./src/View/AuthData.php ===
 <?php
 declare(strict_types=1);
 // src/View/AuthData.php
-
 namespace App\View;
 
 use App\Application\LocalizedContentService;
@@ -3893,10 +4238,14 @@ class AuthData implements TemplateDataInterface
         public readonly string $action,
         public readonly ?User $user = null,
         public readonly array $errors = [],
-        public readonly array $oldInput = []
+        public readonly array $oldInput = [],
+        public readonly string $csrf_token = '',
+	public readonly ?string $avatarUrl = null,
+        public readonly ?string $avatarMessage = null
     ) {}
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/View/FooterData.php ===
+
+=== Файл: ./src/View/FooterData.php ===
 <?php
 declare(strict_types=1);
 // src/View/FooterData.php
@@ -3913,7 +4262,7 @@ class FooterData implements TemplateDataInterface
         public readonly string $lang_code
     ) {}
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/View/MainContentData.php ===
+=== Файл: ./src/View/MainContentData.php ===
 <?php
 declare(strict_types=1);
 
@@ -3930,7 +4279,7 @@ class MainContentData implements TemplateDataInterface
         public readonly string $lang_code
     ) {}
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/View/NavData.php ===
+=== Файл: ./src/View/NavData.php ===
 <?php
 declare(strict_types=1);
 // src/View/NavData.php
@@ -3949,7 +4298,7 @@ class NavData implements TemplateDataInterface
         public readonly NavService $nav_service
     ) {}
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/View/PageAboutData.php ===
+=== Файл: ./src/View/PageAboutData.php ===
 <?php
 declare(strict_types=1);
 
@@ -3964,7 +4313,7 @@ class PageAboutData implements TemplateDataInterface
         public readonly string $lang_code
     ) {}
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/View/PagePrinciplesData.php ===
+=== Файл: ./src/View/PagePrinciplesData.php ===
 <?php
 declare(strict_types=1);
 
@@ -3979,7 +4328,7 @@ class PagePrinciplesData implements TemplateDataInterface
         public readonly string $lang_code
     ) {}
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/View/SidebarData.php ===
+=== Файл: ./src/View/SidebarData.php ===
 <?php
 declare(strict_types=1);
 
@@ -3996,7 +4345,7 @@ class SidebarData implements TemplateDataInterface
         public readonly string $position
     ) {}
 }
-=== Файл: /var/www/vhosts/projecthumanity.space/public_html/src/View/TemplateDataInterface.php ===
+=== Файл: ./src/View/TemplateDataInterface.php ===
 <?php
 declare(strict_types=1);
 

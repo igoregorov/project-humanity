@@ -257,4 +257,14 @@ $container->singleton('database.health_check', function ($c) {
     return new App\Infrastructure\Database\DatabaseHealthCheck($connectionManager);
 });
 
+// Сервис загрузки аватаров
+$container->singleton('avatar_service', function ($c) {
+    $uploadDir = __DIR__ . '/storage/avatars';
+
+    // Веб-путь: через скрипт-прокладку для безопасности
+    $publicUrlPrefix = '/public/get_avatar.php?file=';
+
+    return new App\Infrastructure\Security\AvatarUploadService($uploadDir, $publicUrlPrefix);
+});
+
 return $container;

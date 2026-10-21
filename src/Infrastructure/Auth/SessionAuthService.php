@@ -57,7 +57,8 @@ class SessionAuthService implements AuthServiceInterface
             true,
             new \DateTimeImmutable(),
             null,
-            null
+	    null,
+	    null
         );
 
         $this->userRepository->save($user);

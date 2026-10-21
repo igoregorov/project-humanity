@@ -70,5 +70,6 @@ $has_right_sidebar = $layoutData['has_right_sidebar'] ?? false;
     <?= $footerHtml ?>
 
 </div>
+<script src="/scripts/avatar.js" defer></script>
 </body>
 </html>
