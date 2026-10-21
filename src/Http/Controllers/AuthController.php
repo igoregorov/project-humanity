@@ -354,8 +354,7 @@ class AuthController extends AbstractController
             errors: $errors,
             oldInput: [],
             csrf_token: $this->getCsrfToken(true),
-            avatarUrl: $avatarUrl,
-            avatarMessage: $message
+            avatarUrl: $avatarUrl
         );
     }
 

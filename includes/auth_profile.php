@@ -10,10 +10,6 @@ $user = $data->user;
         <div class="error-message"><?= htmlspecialchars($data->errors['general']) ?></div>
     <?php endif; ?>
 
-    <?php if ($data->avatarMessage): ?>
-        <div class="success-message"><?= htmlspecialchars($data->avatarMessage) ?></div>
-    <?php endif; ?>
-
     <div class="profile-info">
         <div class="profile-field">
             <label>Имя пользователя:</label>

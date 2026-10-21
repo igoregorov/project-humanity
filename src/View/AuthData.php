@@ -16,7 +16,6 @@ class AuthData implements TemplateDataInterface
         public readonly array $errors = [],
         public readonly array $oldInput = [],
         public readonly string $csrf_token = '',
-	public readonly ?string $avatarUrl = null,
-        public readonly ?string $avatarMessage = null
+        public readonly ?string $avatarUrl = null
     ) {}
 }
