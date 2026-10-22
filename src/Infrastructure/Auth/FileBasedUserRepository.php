@@ -1,6 +1,7 @@
-// src/Infrastructure/Auth/FileBasedUserRepository.php
 <?php
 declare(strict_types=1);
+// src/Infrastructure/Auth/FileBasedUserRepository.php
+
 
 namespace App\Infrastructure\Auth;
 

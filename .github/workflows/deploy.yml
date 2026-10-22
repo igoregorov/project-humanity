@@ -1,61 +1,149 @@
-name: Project Humanity — Manual Deploy & Debug
+name: Secure Deploy Project Humanity
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Только ручной запуск для начала
   push:
-    branches: [ master ]
+    branches: [ master ] # Раскомментируй после проверки
 
 jobs:
-  deploy:
-    name: Deploy to Server
+  validate-and-deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup PHP 8.1
+      - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
-          tools: composer
+          extensions: gd, pdo_mysql, mbstring, fileinfo, openssl
+          tools: composer:v2
 
-      - name: Cache Composer packages
-        uses: actions/cache@v4 # Обновлено с v3 на v4, чтобы убрать варнинг про Node 20
-        with:
-          path: vendor
-          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-php-
+      - name: Validate PHP Syntax
+        run: |
+          find . -type f -name "*.php" -not -path "./vendor/*" -exec php -l {} \;
 
-      - name: Install PHP dependencies
-        run: composer install --no-dev --optimize-autoloader
+      - name: Check Critical Files Exist
+        run: |
+          test -f public_html/index.php || exit 1
+          test -f app/bootstrap.php || exit 1
+          test -f container.php || exit 1
+          test -f config.php || exit 1
+          echo "Critical structure verified."
 
-      - name: Prepare SSH key
+      - name: Prepare SSH Key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
-      - name: Deploy via rsync
+      - name: Rsync Dry Run (Preview Changes)
+        env:
+          DEPLOY_PATH: "/var/www/vhosts/projecthumanity.space"
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          rsync -avzn --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.gitignore' \
+            --exclude='vendor/' \
+            --exclude='node_modules/' \
+            --exclude='.env*' \
+            --exclude='config/.env*' \
+            --exclude='config/.settings.config' \
+            --exclude='storage/*' \
+            --exclude='logs/*' \
+            --exclude='backup_*' \
+            --exclude='quarantine_*' \
+            --exclude='*.log' \
+            --exclude='*.sql' \
+            --exclude='*.bak' \
+            --exclude='*.old' \
+            --exclude='*.orig' \
+            --exclude='*.save' \
+            --exclude='*.swp' \
+            --exclude='all_php_merged.txt' \
+            --exclude='README.md' \
+            --exclude='CHANGELOG.md' \
+            --exclude='LICENSE' \
+            --exclude='CONTRIBUTING.md' \
+            -e "ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519" \
+            ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+
+      - name: Real Deploy via Rsync
+        if: success() 
+        env:
+          DEPLOY_PATH: "/var/www/vhosts/projecthumanity.space"
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
           rsync -avz --delete \
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='.gitignore' \
-            --exclude='.env*' \
-            --exclude='config/.settings.config' \
-            --exclude='storage/' \
+            --exclude='vendor/' \
             --exclude='node_modules/' \
-            -e "ssh -i ~/.ssh/deploy_key -p 22" \
-            ./ "$SSH_USER@$SSH_HOST:/var/www/vhosts/projecthumanity.space/public_html/"
+            --exclude='.env*' \
+            --exclude='config/.env*' \
+            --exclude='config/.settings.config' \
+            --exclude='storage/*' \
+            --exclude='logs/*' \
+            --exclude='backup_*' \
+            --exclude='quarantine_*' \
+            --exclude='*.log' \
+            --exclude='*.sql' \
+            --exclude='*.bak' \
+            --exclude='*.old' \
+            --exclude='*.orig' \
+            --exclude='*.save' \
+            --exclude='*.swp' \
+            --exclude='all_php_merged.txt' \
+            --exclude='README.md' \
+            --exclude='CHANGELOG.md' \
+            --exclude='LICENSE' \
+            --exclude='CONTRIBUTING.md' \
+            -e "ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519" \
+            ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
 
-      - name: Run database migrations
+      - name: Post-Deploy Tasks (Composer & Migrations)
+        env:
+          DEPLOY_PATH: "/var/www/vhosts/projecthumanity.space"
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
-            "cd /var/www/vhosts/projecthumanity.space/public_html && php run_migrations.php"
+          ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" << 'EOF'
+            set -e
+            cd /var/www/vhosts/projecthumanity.space
+            
+            # 1. Install dependencies (vendor is excluded from rsync)
+            echo "Running composer install..."
+            COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
+            
+            # 2. Fix permissions (ensure www-data can write to storage/logs)
+            # Assuming deploy user is in www-data group or has sudo rights for chown/chgrp
+            # We use generic chmod here, adjust if specific ownership needed
+            echo "Fixing permissions..."
+            find storage -type d -exec chmod 2775 {} \;
+            find storage -type f -exec chmod 664 {} \;
+            find logs -type d -exec chmod 2775 {} \;
+            
+            # 3. Run Migrations
+            echo "Running migrations..."
+            php bin/run_migrations.php
+            
+            # 4. Clear OpCache if possible (optional but recommended)
+            # php -r 'opcache_reset();' || true
+            
+            echo "Deployment finished successfully."
+          EOF
 
-    env:
-      SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      SSH_HOST: ${{ secrets.SSH_HOST }}
-      SSH_USER: ${{ secrets.SSH_USER }}
+      - name: Health Check
+        run: |
+          curl -I https://projecthumanity.space/ | grep "HTTP/2 200" || curl -I http://projecthumanity.space/ | grep "HTTP/1.1 200"

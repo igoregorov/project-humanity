@@ -6,7 +6,7 @@ declare(strict_types=1);
 use App\Http\RequestHandler;
 use function App\Http\sendCleanErrorPage;
 
-$container = require_once __DIR__ . '/app/bootstrap.php';
+$container = require_once dirname(__DIR__) . '/app/bootstrap.php';
 
 try {
     $requestHandler = new RequestHandler($container);
