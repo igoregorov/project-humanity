@@ -2,8 +2,8 @@ name: Secure Deploy Project Humanity
 
 on:
   workflow_dispatch: # Только ручной запуск для начала
-  push:
-    branches: [ master ] # Раскомментируй после проверки
+  #  push:
+  #  branches: [ master ] # Раскомментируй после проверки
 
 jobs:
   validate-and-deploy:
