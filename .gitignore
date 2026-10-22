@@ -1,6 +1,33 @@
+# IDE
 /.idea
-/vendor
-Thumbs.db
+/.vscode
+*.sublime-*
+
+# OS
 .DS_Store
-.env*
+Thumbs.db
+
+# Composer / Vendor
+/vendor
+composer.phar
+
+# Secrets & Local Config
+.env
+.env.*
+config/.env.production
 config/.settings.config
+
+# Runtime Data (Storage & Logs)
+/storage/*
+!/storage/.gitkeep
+/logs/*
+!/logs/.gitkeep
+
+# Backups & Quarantine (never commit these)
+/backup_*
+/quarantine_*
+/all_php_merged.txt
+
+# Build artifacts
+/node_modules
+/dist

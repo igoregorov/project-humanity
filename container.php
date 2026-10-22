@@ -1,7 +1,8 @@
 <?php
 declare(strict_types=1);
 // container.php
-require_once 'vendor/autoload.php';
+
+require_once __DIR__ . '/vendor/autoload.php';
 
 use App\Application\LocalizedContentService;
 use App\Application\EventsService;

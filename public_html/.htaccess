@@ -1,0 +1,97 @@
+# ==========================================================
+# projecthumanity.space / public_html/.htaccess
+# Безопасный front controller + defense in depth
+# ==========================================================
+
+Options -Indexes -MultiViews +SymLinksIfOwnerMatch
+DirectoryIndex index.php
+
+# ----------------------------------------------------------
+# 1. Базовый запрет скрытых и служебных файлов
+# ----------------------------------------------------------
+<IfModule mod_authz_core.c>
+    # Скрытые файлы: .env.local, .gitignore и т.п.
+    <FilesMatch "^\.">
+        Require all denied
+    </FilesMatch>
+
+    # Типичные backup/temp файлы
+    <FilesMatch "(?i)\.(bak|old|orig|save|swp|dist|ini|log|sql|sh|lock)$">
+        Require all denied
+    </FilesMatch>
+
+    # Конкретные опасные имена, если вдруг останутся в public_html
+    <FilesMatch "(?i)^(container|config|run_migrations|check_db_status|all_php_merged|composer\.json|composer\.lock|README|CHANGELOG)\.(php|txt|json|lock|md)$">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+
+# ----------------------------------------------------------
+# 2. Жёсткая блокировка Git/GitHub/env через mod_alias
+# ----------------------------------------------------------
+<IfModule mod_alias.c>
+    RedirectMatch 404 /\.git(/|$)
+    RedirectMatch 404 /\.github(/|$)
+    RedirectMatch 404 /\.env(/|$)
+</IfModule>
+
+# ----------------------------------------------------------
+# 3. Mod_rewrite: блокировка + front controller
+# ----------------------------------------------------------
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Явная блокировка .git/.github/.env до общих правил
+    RewriteRule ^\.git(?:/|$) - [F,L]
+    RewriteRule ^\.github(?:/|$) - [F,L]
+    RewriteRule ^\.env(?:/|$) - [F,L]
+
+    # Разрешаем ACME HTTP-01 challenge, если используется Let's Encrypt webroot
+    RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+    RewriteRule "(^|/)\." - [F,L]
+
+    # Блокируем приватные директории, если они случайно остались в public_html
+    RewriteRule "^(app|config|includes|locales|migrations|src|vendor|storage)(/|$)" - [F,L]
+
+    # Блокируем приватные файлы верхнего уровня
+    RewriteRule "^(container|config|run_migrations|check_db_status|all_php_merged|composer)\.(php|txt|json|lock)$" - [F,L]
+    RewriteRule "^(README|CHANGELOG)\.md$" - [F,L]
+
+    # Существующие файлы и директории отдаём как есть:
+    # /styles.css, /scripts/avatar.js, /captcha.php, /public/get_avatar.php и т.д.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Всё остальное — на front controller
+    # Несуществующие .php-файлы не должны попадать на front controller
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule \.php$ - [L]
+
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# ----------------------------------------------------------
+# 4. Security headers
+# ----------------------------------------------------------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # CSP лучше оставить в одном месте.
+    # Сейчас bootstrap.php уже ставит CSP для PHP-ответов.
+    # Если включишь CSP здесь, нужно убрать/согласовать CSP в bootstrap.php,
+    # иначе браузер может применить оба policy одновременно.
+    #
+    # Пример строгого CSP:
+    # Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+</IfModule>
+
+# ----------------------------------------------------------
+# 5. Сжатие
+# ----------------------------------------------------------
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript application/json
+</IfModule>

@@ -2,7 +2,7 @@
 // check_db_status.php
 declare(strict_types=1);
 
-$container = require_once __DIR__ . '/app/bootstrap.php';
+$container = require_once dirname(__DIR__) . '/app/bootstrap.php';
 
 try {
     $healthCheck = $container->get('database.health_check');

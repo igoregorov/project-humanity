@@ -13,15 +13,17 @@ class ConfigLoader
     private string $settingsPath;
 
     public function __construct(
-        string $envLocalPath = './.env.local',
-        string $envProductionPath = './../config/.env.production',
-        string $languagesPath = './config/languages.json',
-        string $settingsPath = './config/.settings.config'
+        ?string $envLocalPath = null,
+        ?string $envProductionPath = null,
+        ?string $languagesPath = null,
+        ?string $settingsPath = null
     ) {
-        $this->envLocalPath = $envLocalPath;
-        $this->envProductionPath = $envProductionPath;
-        $this->languagesPath = $languagesPath;
-        $this->settingsPath = $settingsPath;
+        $projectRoot = dirname(__DIR__, 2); 
+
+        $this->envLocalPath = $envLocalPath ?? $projectRoot . '/.env.local';
+        $this->envProductionPath = $envProductionPath ?? $projectRoot . '/config/.env.production';
+        $this->languagesPath = $languagesPath ?? $projectRoot . '/config/languages.json';
+        $this->settingsPath = $settingsPath ?? $projectRoot . '/config/.settings.config';
     }
 
     public function load(): array
@@ -141,18 +143,17 @@ class ConfigLoader
             ]
         ];
     }
-
     private function buildConfig(string $environment, array $languagesData, array $settingsData): array
     {
         $appDebug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
-
-        // --- ВАЛИДАЦИЯ ---
+        
         $requiredEnvVars = ['APP_DEBUG'];
         $missingVars = array_filter($requiredEnvVars, fn($var) => !isset($_ENV[$var]));
         if (!empty($missingVars)) {
             throw new RuntimeException("Отсутствуют обязательные переменные окружения: " . implode(', ', $missingVars));
         }
-        // --- /ВАЛИДАЦИЯ ---
+
+        $projectRoot = dirname(__DIR__, 2);
 
         return [
             'database' => [
@@ -168,14 +169,14 @@ class ConfigLoader
                 'environment' => $environment,
                 'allowedPages' => ['home', 'about', 'principles'],
                 'locales' => [
-                    'main'    => $_ENV['LOCALES_MAIN_PATH'] ?? './locales/main',
-                    'about'   => $_ENV['LOCALES_ABOUT_PATH'] ?? './locales/about',
-                    'events'  => $_ENV['LOCALES_EVENTS_PATH'] ?? './locales/events',
-                    'news'    => $_ENV['LOCALES_NEWS_PATH'] ?? './locales/news',
-                    'principles' => $_ENV['LOCALES_PRINCIPLES_PATH'] ?? './locales/principles',
-                    'timeline' => $_ENV['LOCALES_TIMELINE_PATH'] ?? './locales/timeline',
-                    'social' => $_ENV['LOCALES_SOCIAL_PATH'] ?? './locales/social',
-                    'telegram' => $_ENV['LOCALES_TELEGRAM_PATH'] ?? './locales/telegram',
+                    'main'       => $projectRoot . '/locales/main',
+                    'about'      => $projectRoot . '/locales/about',
+                    'events'     => $projectRoot . '/locales/events',
+                    'news'       => $projectRoot . '/locales/news',
+                    'principles' => $projectRoot . '/locales/principles',
+                    'timeline'   => $projectRoot . '/locales/timeline',
+                    'social'     => $projectRoot . '/locales/social',
+                    'telegram'   => $projectRoot . '/locales/telegram',
                 ],
                 'allowed_languages' => array_keys($languagesData),
                 'languages' => $languagesData,

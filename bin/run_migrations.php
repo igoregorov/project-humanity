@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-$container = require_once 'container.php';
+$container = require_once dirname(__DIR__) . '/container.php';
 $pdo = $container->get('pdo');
 
-$migrationsDir = __DIR__ . '/migrations';
+$migrationsDir = dirname(__DIR__) . '/migrations';
 
 // Убедимся, что таблица миграций существует
 try {

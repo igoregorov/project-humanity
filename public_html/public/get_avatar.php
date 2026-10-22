@@ -17,7 +17,7 @@ if (!preg_match('/^user_\d+_[a-f0-9]{16}\.(jpg|png|webp|gif)$/i', $filename)) {
 
 // Формируем абсолютный путь к файлу вне публичной директории
 // __DIR__ указывает на папку public/, поэтому ../ поднимает нас в корень проекта
-$filePath = __DIR__ . '/../storage/avatars/' . $filename;
+$filePath = dirname(__DIR__, 2) . '/storage/avatars/' . $filename;
 
 if (!file_exists($filePath) || !is_file($filePath)) {
     http_response_code(404);
