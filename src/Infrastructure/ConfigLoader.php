@@ -13,15 +13,17 @@ class ConfigLoader
     private string $settingsPath;
 
     public function __construct(
-        string $envLocalPath = './.env.local',
-        string $envProductionPath = './../config/.env.production',
-        string $languagesPath = './config/languages.json',
-        string $settingsPath = './config/.settings.config'
+        ?string $envLocalPath = null,
+        ?string $envProductionPath = null,
+        ?string $languagesPath = null,
+        ?string $settingsPath = null
     ) {
-        $this->envLocalPath = $envLocalPath;
-        $this->envProductionPath = $envProductionPath;
-        $this->languagesPath = $languagesPath;
-        $this->settingsPath = $settingsPath;
+        $projectRoot = dirname(__DIR__, 2); 
+
+        $this->envLocalPath = $envLocalPath ?? $projectRoot . '/.env.local';
+        $this->envProductionPath = $envProductionPath ?? $projectRoot . '/config/.env.production';
+        $this->languagesPath = $languagesPath ?? $projectRoot . '/config/languages.json';
+        $this->settingsPath = $settingsPath ?? $projectRoot . '/config/.settings.config';
     }
 
     public function load(): array
