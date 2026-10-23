@@ -1,13 +1,13 @@
 name: Secure Deploy Project Humanity
 
 on:
-  workflow_dispatch: # Ручной запуск (работает только после мержа в master)
+  workflow_dispatch:
   
-  pull_request:      # <-- ДОБАВЛЕНО: Триггер для PR
+  pull_request:
     branches: [ master ]
     
   push:
-    branches: [ master ] # Автоматический деплой только после мержа
+    branches: [ master ]
 
 jobs:
   validate-and-deploy:
@@ -36,11 +36,7 @@ jobs:
           test -f config.php || exit 1
           echo "Critical structure verified."
 
-      # --- БЛОК SSH И DRY-RUN ---
-      
       - name: Prepare SSH Key
-        # Запускаем только если это не PR, ИЛИ если в PR включен флаг debug_ssh
-        # Для простоты: запускаем всегда, но в PR делаем только dry-run
         if: github.event_name != 'pull_request' || contains(github.head_ref, 'debug-ssh')
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -53,7 +49,6 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
 
       - name: Rsync Dry Run (Preview Changes)
-        # Запускаем dry-run даже в PR, чтобы увидеть список изменений
         if: github.event_name != 'pull_request' || contains(github.head_ref, 'debug-ssh')
         env:
           DEPLOY_PATH: "/var/www/vhosts/projecthumanity.space"
@@ -88,10 +83,7 @@ jobs:
             -e "ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519" \
             ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
 
-      # --- БЛОК РЕАЛЬНОГО ДЕПЛОЯ (ЗАБЛОКИРОВАН ДЛЯ PR) ---
-
       - name: Real Deploy via Rsync
-        # КРИТИЧНО: Этот шаг НЕ выполнится в PR. Только при push в master или workflow_dispatch.
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
         env:
           DEPLOY_PATH: "/var/www/vhosts/projecthumanity.space"
@@ -152,8 +144,15 @@ jobs:
             echo "Deployment finished successfully."
           EOF
 
+      - name: Install Let's Encrypt Root Certificates
+        run: |
+          sudo curl -fsSL https://letsencrypt.org/certs/isrgrootx1.pem \
+            -o /usr/local/share/ca-certificates/isrg-root-x1.crt
+          sudo curl -fsSL https://letsencrypt.org/certs/gen-y/root-yr.pem \
+            -o /usr/local/share/ca-certificates/root-yr.crt
+          sudo update-ca-certificates
+
       - name: Health Check
-        # Тоже заблокировано для PR
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
         run: |
           curl -I https://projecthumanity.space/ | grep "HTTP/2 200" || curl -I http://projecthumanity.space/ | grep "HTTP/1.1 200"
