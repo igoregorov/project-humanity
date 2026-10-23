@@ -91,7 +91,8 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" << 'EOF'
+          ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' bash -s" << 'EOF'
             set -e
             cd "$DEPLOY_PATH"
 
@@ -107,3 +108,4 @@ jobs:
       - name: Health Check
         run: |
           curl -f -k https://projecthumanity.space/ || curl -f http://projecthumanity.space/
+
