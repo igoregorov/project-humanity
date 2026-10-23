@@ -1,10 +1,10 @@
 /* styles.css */
 
 /* styles.css */
-@import 'variables.css';
-@import 'layout.css';
-@import 'navigation.css';
-@import 'auth.css';
+@import './variables.css';
+@import './layout.css';
+@import './navigation.css';
+@import './auth.css';
 
 /* Стили сайдбаров */
 @import 'sidebar/sidebar.css';
