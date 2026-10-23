@@ -98,21 +98,12 @@ jobs:
             echo "Running composer install..."
             COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-            echo "Fixing permissions..."
-            # Слово sudo УДАЛЕНО, так как пользователь теперь владеет файлами
-            chown -R www-data:www-data storage logs
-            find storage -type d -exec chmod 2775 {} \;
-            find storage -type f -exec chmod 664 {} \;
-            find logs -type d -exec chmod 2775 {} \;
-
             echo "Running migrations..."
             php bin/run_migrations.php
 
             echo "Deployment finished successfully."
           EOF
-		  
+
       - name: Health Check
         run: |
           curl -f -k https://projecthumanity.space/ || curl -f http://projecthumanity.space/
-
-
