@@ -148,8 +148,8 @@ jobs:
         run: |
           sudo curl -fsSL https://letsencrypt.org/certs/isrgrootx1.pem \
             -o /usr/local/share/ca-certificates/isrg-root-x1.crt
-          sudo curl -fsSL https://letsencrypt.org/certs/gen-y/root-yr.pem \
-            -o /usr/local/share/ca-certificates/root-yr.crt
+          sudo curl -fsSL https://letsencrypt.org/certs/gen-y/root-yr-by-x1.pem \
+            -o /usr/local/share/ca-certificates/root-yr-by-x1.crt
           sudo update-ca-certificates
 
       - name: Health Check
