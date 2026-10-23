@@ -3,12 +3,12 @@ declare(strict_types=1);
 
 namespace App\Domain\Sidebar;
 
-use App\Infrastructure\JsonTelegramRepository;
+use App\Domain\TelegramRepositoryInterface;
 
-class TelegramSidebarWidget extends AbstractSidebarWidget
+final class TelegramSidebarWidget extends AbstractSidebarWidget
 {
     public function __construct(
-        private readonly JsonTelegramRepository $telegramRepository,
+        private readonly TelegramRepositoryInterface $telegramRepository,
         array $config
     ) {
         parent::__construct($config);
@@ -18,14 +18,15 @@ class TelegramSidebarWidget extends AbstractSidebarWidget
     {
         $widgetData = $this->telegramRepository->getWidgetData($lang);
         $posts = $this->telegramRepository->findByLang($lang);
+        $maxItems = (int) ($this->config['max_items'] ?? 3);
 
         return [
             'type' => 'telegram',
             'title' => $widgetData['widget_title'],
             'no_content_message' => $widgetData['no_items'],
-            'posts' => $posts,
-            'channel_url' => $this->config['channel_url'] ?? '#',
-            'max_items' => $this->config['max_items'] ?? 3
+            'posts' => array_slice($posts, 0, $maxItems),
+            'channel_url' => (string) ($this->config['channel_url'] ?? '#'),
+            'max_items' => $maxItems,
         ];
     }
 }

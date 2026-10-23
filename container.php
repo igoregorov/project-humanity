@@ -14,39 +14,13 @@ use App\Http\Router;
 
 
 // Загружаем конфигурацию
-$config = require_once 'config.php';
+$config = require_once __DIR__ . '/config.php';
 
 // Создаём контейнер
 $container = new SimpleContainer();
 
 // Регистрируем конфигурацию как СЕРВИС в контейнере
 $container->set('config', $config);
-
-// Сервис подключения к БД
-$container->singleton('pdo', function ($c) {
-    static $pdo = null;
-
-    if ($pdo === null) {
-        $config = $c->get('config');
-        $dbConfig = $config['database'];
-
-        $dsn = "mysql:host={$dbConfig['host']};port={$dbConfig['port']};dbname={$dbConfig['dbname']};charset=utf8mb4";
-        try {
-            $pdo = new PDO($dsn, $dbConfig['user'], $dbConfig['password'], [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_PERSISTENT => false, // Не использовать постоянные соединения
-            ]);
-            return $pdo;
-        } catch (Exception $e) {
-            // Логируем ошибку, но не прерываем выполнение
-            error_log("Ошибка подключения к БД: " . $e->getMessage());
-            throw new RuntimeException("Ошибка подключения к БД: " . $e->getMessage(), 0, $e);
-        }
-    }
-
-    return $pdo;
-});
 
 // Сервисы для локализации
 $container->singleton('language_service', function ($c) {
@@ -70,7 +44,7 @@ $container->singleton('pdo', function ($c) {
 });
 
 // Репозитории
-$storageDriver = $config['app']['storage_driver'];
+$storageDriver = $config['app']['storage_driver'] ?? 'json';
 
 $container->singleton('content_repository', function ($c) use ($storageDriver) {
     $locales = $c->get('config')['app']['locales'];

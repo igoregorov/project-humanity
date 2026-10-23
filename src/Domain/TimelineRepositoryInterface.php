@@ -1,5 +1,8 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Domain;
 
-interface TimelineRepositoryInterface extends RepositoryInterface {}
+interface TimelineRepositoryInterface extends ItemsRepositoryInterface
+{
+}

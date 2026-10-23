@@ -44,12 +44,22 @@ class SimpleContainer implements ContainerInterface
 
     public function singleton(string $id, callable $callable): ContainerInterface
     {
+        if (array_key_exists($id, $this->values)) {
+            throw new \RuntimeException("Service '{$id}' already resolved and cannot be redefined.");
+        }
+
+        if (isset($this->factories[$id])) {
+            throw new \RuntimeException("Service '{$id}' is already registered.");
+        }
+
         $this->factories[$id] = function (ContainerInterface $container) use ($id, $callable) {
             if (!array_key_exists($id, $this->values)) {
                 $this->values[$id] = $callable($container);
             }
+
             return $this->values[$id];
         };
+
         return $this;
     }
 }

@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
 
-// src/Application/ContentManager.php
-
 namespace App\Application;
 
 use App\Domain\EventsRepositoryInterface;
@@ -14,65 +12,82 @@ class ContentManager
     public function __construct(
         private readonly EventsRepositoryInterface $eventsRepository,
         private readonly NewsRepositoryInterface $newsRepository
-    ) {}
+    ) {
+    }
 
     /**
-     * Получает активные события (будущие)
+     * Получает активные события (сегодня и будущие).
+     *
+     * @return array<int|string, array<string, mixed>>
      */
     public function getActiveEvents(string $lang): array
     {
         $events = $this->eventsRepository->findByLang($lang);
-        $now = new DateTimeImmutable();
+        $today = new DateTimeImmutable('today');
 
-        return array_filter($events, function ($event) use ($now) {
-            if (!isset($event['date'])) return false;
+        return array_filter($events, static function ($event) use ($today): bool {
+            if (!isset($event['date']) || $event['date'] === '') {
+                return false;
+            }
 
-            $eventDate = DateTimeImmutable::createFromFormat('Y-m-d', $event['date']);
-            return $eventDate && $eventDate >= $now;
+            $eventDate = DateTimeImmutable::createFromFormat('Y-m-d', (string) $event['date']);
+
+            return $eventDate !== false && $eventDate >= $today;
         });
     }
 
     /**
-     * Получает архив событий (прошедшие)
+     * Получает архив событий (строго прошедшие).
+     *
+     * @return array<int|string, array<string, mixed>>
      */
     public function getArchivedEvents(string $lang): array
     {
         $events = $this->eventsRepository->findByLang($lang);
-        $now = new DateTimeImmutable();
+        $today = new DateTimeImmutable('today');
 
-        return array_filter($events, function ($event) use ($now) {
-            if (!isset($event['date'])) return false;
+        return array_filter($events, static function ($event) use ($today): bool {
+            if (!isset($event['date']) || $event['date'] === '') {
+                return false;
+            }
 
-            $eventDate = DateTimeImmutable::createFromFormat('Y-m-d', $event['date']);
-            return $eventDate && $eventDate < $now;
+            $eventDate = DateTimeImmutable::createFromFormat('Y-m-d', (string) $event['date']);
+
+            return $eventDate !== false && $eventDate < $today;
         });
     }
 
     /**
-     * Получает все новости (включая архив событий)
+     * Получает все новости и архив событий, отсортированные по дате.
+     *
+     * @return array<int, array<string, mixed>>
      */
     public function getAllNews(string $lang): array
     {
         $news = $this->newsRepository->findByLang($lang);
         $archivedEvents = $this->getArchivedEvents($lang);
 
-        // Объединяем новости и архив событий
-        $allContent = array_merge($news, $archivedEvents);
+        $allContent = array_merge($news, array_values($archivedEvents));
 
-        // Сортируем по дате (новые сначала)
-        usort($allContent, function ($a, $b) {
-            return strtotime($b['date']) <=> strtotime($a['date']);
+        usort($allContent, static function ($a, $b): int {
+            $aTime = isset($a['date']) ? strtotime((string) $a['date']) : 0;
+            $bTime = isset($b['date']) ? strtotime((string) $b['date']) : 0;
+
+            return $bTime <=> $aTime;
         });
 
         return $allContent;
     }
 
     /**
-     * Получает последние новости (ограниченное количество)
+     * Получает последние новости.
+     *
+     * @return array<int, array<string, mixed>>
      */
     public function getLatestNews(string $lang, int $limit = 5): array
     {
         $allNews = $this->getAllNews($lang);
-        return array_slice($allNews, 0, $limit);
+
+        return array_slice($allNews, 0, max(0, $limit));
     }
 }
