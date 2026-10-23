@@ -27,7 +27,11 @@ abstract class JsonItemsRepository implements ItemsRepositoryInterface
             return [];
         }
 
-        return $this->normalizeItems($data['items'] ?? []);
+        $items = $this->normalizeItems($data['items'] ?? []);
+
+        return array_values(array_filter($items, static function (array $item): bool {
+            return (bool) ($item['is_active'] ?? true);
+        }));
     }
 
     /**
@@ -60,15 +64,23 @@ abstract class JsonItemsRepository implements ItemsRepositoryInterface
      */
     protected function normalizeItems(array $items): array
     {
-        return array_map(function ($item) {
-            return [
-                'planned_date' => $item['planned_date'] ?? $item['date'] ?? null,
-                'title' => $item['title'] ?? '',
-                'description' => $item['description'] ?? '',
+        $result = [];
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $result[] = [
+                'date' => (string) ($item['date'] ?? $item['planned_date'] ?? ''),
+                'title' => (string) ($item['title'] ?? ''),
+                'description' => (string) ($item['description'] ?? ''),
+                'type' => (string) ($item['type'] ?? $item['item_type'] ?? 'default'),
                 'is_active' => filter_var($item['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
-                'item_type' => $item['item_type'] ?? $item['type'] ?? 'default'
             ];
-        }, $items);
+        }
+
+        return $result;
     }
 
     /**

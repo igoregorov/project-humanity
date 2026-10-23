@@ -46,10 +46,19 @@ set_error_handler(/**
 });
 
 set_exception_handler(function (Throwable $e) {
+    error_log(
+        "Uncaught Exception: " . $e->getMessage() .
+        " in " . $e->getFile() . ":" . $e->getLine() .
+        PHP_EOL . $e->getTraceAsString()
+    );
 
-    error_log("Uncaught Exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine() . "\n" . $e->getTraceAsString());
-
-    sendCleanErrorPage($e->getMessage(), $e->getFile(), (string) $e->getLine(), $e->getTraceAsString(), true);
+    sendCleanErrorPage(
+        $e->getMessage(),
+        $e->getFile(),
+        (string) $e->getLine(),
+        $e->getTraceAsString(),
+        false
+    );
 });
 
 $container = require_once __DIR__ . '/../container.php';

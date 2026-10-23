@@ -9,6 +9,7 @@ use App\Domain\Auth\User;
 use App\Domain\Auth\UserRepositoryInterface;
 use Exception;
 use RuntimeException;
+use InvalidArgumentException;
 
 class SessionAuthService implements AuthServiceInterface
 {
