@@ -1,18 +1,14 @@
 name: Secure Deploy Project Humanity
 
 on:
-  workflow_dispatch: # Ручной запуск (работает только после мержа в master)
-  
-  pull_request:      # <-- ДОБАВЛЕНО: Триггер для PR
-    branches: [ master ]
-    
+  workflow_dispatch:
   push:
-    branches: [ master ] # Автоматический деплой только после мержа
+    branches: [ master ]
 
 jobs:
   validate-and-deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -23,6 +19,14 @@ jobs:
           php-version: '8.1'
           extensions: gd, pdo_mysql, mbstring, fileinfo, openssl
           tools: composer:v2
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
 
       - name: Validate PHP Syntax
         run: |
@@ -36,12 +40,7 @@ jobs:
           test -f config.php || exit 1
           echo "Critical structure verified."
 
-      # --- БЛОК SSH И DRY-RUN ---
-      
       - name: Prepare SSH Key
-        # Запускаем только если это не PR, ИЛИ если в PR включен флаг debug_ssh
-        # Для простоты: запускаем всегда, но в PR делаем только dry-run
-        if: github.event_name != 'pull_request' || contains(github.head_ref, 'debug-ssh')
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
@@ -52,47 +51,7 @@ jobs:
           echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Rsync Dry Run (Preview Changes)
-        # Запускаем dry-run даже в PR, чтобы увидеть список изменений
-        if: github.event_name != 'pull_request' || contains(github.head_ref, 'debug-ssh')
-        env:
-          DEPLOY_PATH: "/var/www/vhosts/projecthumanity.space"
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-        run: |
-          rsync -avzn --delete \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            --exclude='.gitignore' \
-            --exclude='vendor/' \
-            --exclude='node_modules/' \
-            --exclude='.env*' \
-            --exclude='config/.env*' \
-            --exclude='config/.settings.config' \
-            --exclude='storage/*' \
-            --exclude='logs/*' \
-            --exclude='backup_*' \
-            --exclude='quarantine_*' \
-            --exclude='*.log' \
-            --exclude='*.sql' \
-            --exclude='*.bak' \
-            --exclude='*.old' \
-            --exclude='*.orig' \
-            --exclude='*.save' \
-            --exclude='*.swp' \
-            --exclude='all_php_merged.txt' \
-            --exclude='README.md' \
-            --exclude='CHANGELOG.md' \
-            --exclude='LICENSE' \
-            --exclude='CONTRIBUTING.md' \
-            -e "ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519" \
-            ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
-
-      # --- БЛОК РЕАЛЬНОГО ДЕПЛОЯ (ЗАБЛОКИРОВАН ДЛЯ PR) ---
-
       - name: Real Deploy via Rsync
-        # КРИТИЧНО: Этот шаг НЕ выполнится в PR. Только при push в master или workflow_dispatch.
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
         env:
           DEPLOY_PATH: "/var/www/vhosts/projecthumanity.space"
           SSH_USER: ${{ secrets.SSH_USER }}
@@ -107,8 +66,8 @@ jobs:
             --exclude='.env*' \
             --exclude='config/.env*' \
             --exclude='config/.settings.config' \
-            --exclude='storage/*' \
-            --exclude='logs/*' \
+            --exclude='/storage/' \
+            --exclude='/logs/' \
             --exclude='backup_*' \
             --exclude='quarantine_*' \
             --exclude='*.log' \
@@ -127,34 +86,26 @@ jobs:
             ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
 
       - name: Post-Deploy Tasks (Composer & Migrations)
-        # Тоже заблокировано для PR
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
         env:
           DEPLOY_PATH: "/var/www/vhosts/projecthumanity.space"
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" << 'EOF'
+          ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' bash -s" << 'EOF'
             set -e
-            cd /var/www/vhosts/projecthumanity.space
-            
+            cd "$DEPLOY_PATH"
+
             echo "Running composer install..."
-            COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
-            
-            echo "Fixing permissions..."
-            find storage -type d -exec chmod 2775 {} \;
-            find storage -type f -exec chmod 664 {} \;
-            find logs -type d -exec chmod 2775 {} \;
-            
+            COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
             echo "Running migrations..."
             php bin/run_migrations.php
-            
+
             echo "Deployment finished successfully."
           EOF
 
       - name: Health Check
-        # Тоже заблокировано для PR
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
         run: |
-          curl -I https://projecthumanity.space/ | grep "HTTP/2 200" || curl -I http://projecthumanity.space/ | grep "HTTP/1.1 200"
+          curl -f -k https://projecthumanity.space/ || curl -f http://projecthumanity.space/
 

@@ -66,7 +66,7 @@ $oldInput = $data->oldInput;
             <div class="captcha-container">
                 <input type="text" id="captcha" name="captcha"
                        class="<?= isset($errors['captcha']) ? 'error' : '' ?>">
-                <img src="/captcha.php?lang=<?= $data->lang_code ?>"
+                <img src="/public/captcha.php?lang=<?= $data->lang_code ?>"
                      alt="CAPTCHA"
                      onclick="this.src='/captcha.php?lang=<?= $data->lang_code ?>&' + Math.random()"
                      style="cursor: pointer;">
