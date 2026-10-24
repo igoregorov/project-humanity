@@ -45,6 +45,10 @@ $container->singleton('pdo', function ($c) {
 
 // Репозитории
 $storageDriver = $config['app']['storage_driver'] ?? 'json';
+$dbIsActive = (bool) ($config['database']['is_active'] ?? false);
+if ($storageDriver === 'database' && !$dbIsActive) {
+    $storageDriver = 'json';
+}
 
 $container->singleton('content_repository', function ($c) use ($storageDriver) {
     $locales = $c->get('config')['app']['locales'];
