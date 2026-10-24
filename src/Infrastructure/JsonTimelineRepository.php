@@ -27,12 +27,18 @@ class JsonTimelineRepository extends JsonItemsRepository implements TimelineRepo
                 continue;
             }
 
+            $year = trim((string) ($item['year'] ?? ''));
+
+            if ($year === '') {
+                continue;
+            }
+
             $result[] = [
-                'year' => (string) ($item['year'] ?? $item['planned_date'] ?? ''),
+                'year' => $year,
                 'title' => (string) ($item['title'] ?? ''),
                 'description' => (string) ($item['description'] ?? ''),
                 'type' => (string) ($item['type'] ?? $item['item_type'] ?? 'milestone'),
-                'is_active' => true,
+                'is_active' => filter_var($item['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
             ];
         }
 

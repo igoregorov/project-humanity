@@ -31,3 +31,4 @@ config/.settings.config
 # Build artifacts
 /node_modules
 /dist
+/.phpunit.cache

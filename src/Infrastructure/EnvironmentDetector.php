@@ -17,7 +17,7 @@ class EnvironmentDetector
 
     public function detect(): string
     {
-        $currentHostname = gethostname();
+        $currentHostname = (string) gethostname();
 
         foreach ($this->productionHostPatterns as $pattern) {
             if (str_ends_with($currentHostname, $pattern)) {

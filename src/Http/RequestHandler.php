@@ -40,13 +40,31 @@ class RequestHandler
         } catch (RouterException $e) {
             $config = $this->container->get('config');
             $debugMode = $config['app']['debug'] ?? false;
+
             error_log("Router Exception in RequestHandler: " . $e->getMessage());
-            sendCleanErrorPage($e->getMessage(), $e->getFile(), (string) $e->getLine(), $e->getTraceAsString(), $debugMode);
+
+            sendCleanErrorPage(
+                $e->getMessage() ?: 'Страница не найдена',
+                null,
+                null,
+                null,
+                $debugMode,
+                404
+            );
         } catch (Throwable $e) {
             $config = $this->container->get('config');
             $debugMode = $config['app']['debug'] ?? false;
+
             error_log("General Exception in RequestHandler: " . $e->getMessage());
-            sendCleanErrorPage($e->getMessage(), $e->getFile(), (string) $e->getLine(), $e->getTraceAsString(), $debugMode);
+
+            sendCleanErrorPage(
+                $e->getMessage(),
+                $e->getFile(),
+                (string) $e->getLine(),
+                $e->getTraceAsString(),
+                $debugMode,
+                500
+            );
         }
     }
 }

@@ -1,3 +1,11 @@
-[
-
-]
+{
+  "items": [
+    {
+      "year": "2026",
+      "title": "Site launch",
+      "description": "Database migration",
+      "type": "release",
+      "is_active": true
+    }
+  ]
+}

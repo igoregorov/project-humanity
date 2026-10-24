@@ -162,7 +162,7 @@ class ConfigLoader
                 'dbname' => $_ENV['DB_NAME'] ?? '',
                 'user' => $_ENV['DB_USER'] ?? '',
                 'password' => $_ENV['DB_PASS'] ?? '',
-                'is_active' => $settingsData['DB_IS_ACTIVE'] ?? true
+                'is_active' => self::resolveDatabaseIsActive($settingsData, true),
             ],
             'app' => [
                 'debug' => $appDebug,
@@ -186,5 +186,31 @@ class ConfigLoader
             'sidebars' => $this->sidebarConfig(),
             'version' => $_ENV['SITE_VERSION'] ?? '1.0'
         ];
+    }
+
+    public static function resolveDatabaseIsActive(array $settings, bool $default = true): bool
+    {
+        return self::resolveBool($settings, ['DB_IS_ACTIVE', 'db_is_active'], $default);
+    }
+
+    private static function resolveBool(array $settings, array $keys, bool $default): bool
+    {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $settings)) {
+                continue;
+            }
+
+            $value = filter_var(
+                $settings[$key],
+                FILTER_VALIDATE_BOOLEAN,
+                FILTER_NULL_ON_FAILURE
+            );
+
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        return $default;
     }
 }

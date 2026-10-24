@@ -31,7 +31,7 @@ $has_right_sidebar = $layoutData['has_right_sidebar'] ?? false;
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($page_title) ?> — <?= htmlspecialchars($site_title) ?></title>
     <meta name="description" content="<?= htmlspecialchars($description) ?>">
-    <link rel="icon" href="/public_html/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="/styles/styles.css">
 </head>
 <body>
