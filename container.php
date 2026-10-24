@@ -11,6 +11,13 @@ use App\Infrastructure\RepositoryFactory;
 use App\Infrastructure\SimpleContainer;
 use App\Services\LanguageService;
 use App\Http\Router;
+use App\Application\CsrfService;
+use App\Application\FlashMessageService;
+use App\Application\LivingBookService;
+use App\Domain\LivingBook\BookRepositoryInterface;
+use App\Http\Controllers\LivingBookController;
+use App\Infrastructure\Database\DatabaseBookRepository;
+use App\Infrastructure\Security\BookPhotoUploadService;
 
 
 // Загружаем конфигурацию
@@ -244,6 +251,38 @@ $container->singleton('avatar_service', function ($c) {
     $publicUrlPrefix = '/public/get_avatar.php?file=';
 
     return new App\Infrastructure\Security\AvatarUploadService($uploadDir, $publicUrlPrefix);
+});
+
+$container->set('csrf_service', static fn (): CsrfService => new CsrfService());
+
+$container->set('flash_message_service', static fn (): FlashMessageService => new FlashMessageService());
+
+$container->set('book_photo_service', static fn (): BookPhotoUploadService => new BookPhotoUploadService());
+
+$pdoServiceId = null;
+
+foreach (['pdo', 'db', 'database'] as $candidate) {
+    if ($container->has($candidate)) {
+        $pdoServiceId = $candidate;
+        break;
+    }
+}
+
+if ($pdoServiceId !== null) {
+    $container->set('book_repository', static function ($c) use ($pdoServiceId): BookRepositoryInterface {
+        return new DatabaseBookRepository($c->get($pdoServiceId));
+    });
+
+    $container->set('living_book_service', static function ($c): LivingBookService {
+        return new LivingBookService(
+            $c->get('book_repository'),
+            $c->get('book_photo_service')
+        );
+    });
+}
+
+$container->set(LivingBookController::class, static function ($c): LivingBookController {
+    return new LivingBookController($c);
 });
 
 return $container;

@@ -3,6 +3,7 @@ declare(strict_types=1);
 // src/Http/Controllers/AuthController.php
 namespace App\Http\Controllers;
 
+use App\Application\CsrfService;
 use App\Domain\Auth\AuthServiceInterface;
 use App\Domain\Auth\User; // <-- ДОБАВЛЕНО
 use App\Infrastructure\Security\AvatarUploadService; // <-- ДОБАВЛЕНО
@@ -25,7 +26,6 @@ class AuthController extends AbstractController
     {
         $action = $_GET['action'] ?? 'login';
         return match ($action) {
-            'login'            => $this->showLogin($page, $lang),
             'register'         => $this->showRegister($page, $lang),
             'profile'          => $this->showProfile($page, $lang),
             'do_login'         => $this->processLogin($page, $lang),
@@ -365,28 +365,18 @@ class AuthController extends AbstractController
         return $this->renderPage('auth_profile.php', $authData, $page, $lang);
     }
 
-    private function getCsrfToken(bool $forceNew = false): string
+    private function getCsrfService(): CsrfService
     {
-        if (
-            $forceNew
-            || empty($_SESSION['csrf_token'])
-            || empty($_SESSION['csrf_token_time'])
-            || (time() - $_SESSION['csrf_token_time']) > self::CSRF_TOKEN_LIFETIME
-        ) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-            $_SESSION['csrf_token_time'] = time();
-        }
-        return $_SESSION['csrf_token'];
+        return $this->container->get('csrf_service');
+    }
+
+    private function generateCsrfToken(bool $forceNew = false): string
+    {
+        return $this->getCsrfService()->getToken($forceNew);
     }
 
     private function validateCsrfToken(string $token): bool
     {
-        if (empty($token) || empty($_SESSION['csrf_token'])) {
-            return false;
-        }
-        if ((time() - ($_SESSION['csrf_token_time'] ?? 0)) > self::CSRF_TOKEN_LIFETIME) {
-            return false;
-        }
-        return hash_equals($_SESSION['csrf_token'], $token);
+        return $this->getCsrfService()->validateToken($token);
     }
 }
