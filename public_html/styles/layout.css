@@ -45,3 +45,19 @@
 .layout.no-sidebar-left.no-sidebar-right .main-content {
     flex: 1 1 100%;
 }
+
+@media (max-width: 600px) {
+    .sidebar-left,
+    .sidebar-right {
+        display: none !important;
+    }
+
+    .layout {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .main-content {
+        padding: 1rem;
+    }
+}
