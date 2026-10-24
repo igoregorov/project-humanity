@@ -38,6 +38,7 @@ jobs:
           test -f app/bootstrap.php || exit 1
           test -f container.php || exit 1
           test -f config.php || exit 1
+          test -d migrations || exit 1 # <-- ДОБАВЛЕНО: Проверка наличия папки миграций
           echo "Critical structure verified."
 
       - name: Prepare SSH Key
@@ -71,7 +72,6 @@ jobs:
             --exclude='backup_*' \
             --exclude='quarantine_*' \
             --exclude='*.log' \
-            --exclude='*.sql' \
             --exclude='*.bak' \
             --exclude='*.old' \
             --exclude='*.orig' \
@@ -100,7 +100,13 @@ jobs:
             COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
             echo "Running migrations..."
-            php bin/run_migrations.php
+            # Проверяем, что файл существует перед запуском
+            if [ -f "bin/run_migrations.php" ]; then
+              php bin/run_migrations.php
+            else
+              echo "ERROR: bin/run_migrations.php not found!"
+              exit 1
+            fi
 
             echo "Deployment finished successfully."
           EOF
@@ -108,4 +114,3 @@ jobs:
       - name: Health Check
         run: |
           curl -f -k https://projecthumanity.space/ || curl -f http://projecthumanity.space/
-
