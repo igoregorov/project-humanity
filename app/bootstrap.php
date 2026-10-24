@@ -2,12 +2,10 @@
 // app/bootstrap.php
 declare(strict_types=1);
 
-// --- Загрузка зависимостей ---
 use function App\Http\sendCleanErrorPage;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-// --- Безопасность среды ---
 if (PHP_SAPI !== 'cli') {
     ini_set('display_errors', '0'); // Всегда 0 в продакшене
     ini_set('log_errors', '1');
@@ -22,17 +20,23 @@ if (PHP_SAPI !== 'cli') {
 }
 
 // --- Инициализация сессии ---
-if (session_status() === PHP_SESSION_NONE) {
+if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
+    $isHttps = (
+        (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+        || (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443
+        || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https')
+    );
+
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => '/',
         'domain' => '',
-        'secure' => isset($_SERVER['HTTPS']),
+        'secure' => $isHttps,
         'httponly' => true,
-        'samesite' => 'Strict'
+        'samesite' => 'Strict',
     ]);
+
     session_start();
-    session_regenerate_id(true);
 }
 
 set_error_handler(/**
@@ -46,18 +50,25 @@ set_error_handler(/**
 });
 
 set_exception_handler(function (Throwable $e) {
+    error_log(
+        "Uncaught Exception: " . $e->getMessage() .
+        " in " . $e->getFile() . ":" . $e->getLine() .
+        PHP_EOL . $e->getTraceAsString()
+    );
 
-    error_log("Uncaught Exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine() . "\n" . $e->getTraceAsString());
-
-    sendCleanErrorPage($e->getMessage(), $e->getFile(), (string) $e->getLine(), $e->getTraceAsString(), true);
+    sendCleanErrorPage(
+        $e->getMessage(),
+        $e->getFile(),
+        (string) $e->getLine(),
+        $e->getTraceAsString(),
+        false
+    );
 });
 
 $container = require_once __DIR__ . '/../container.php';
 
-// --- Валидация контейнера ---
 if (!isset($container)) {
     throw new RuntimeException('Application configuration error: Container is not set.');
 }
 
-// --- Возврат контейнера для использования в index.php ---
-return $container; // Вот этот return!
+return $container;

@@ -25,7 +25,45 @@ class JsonSocialRepository implements SocialRepositoryInterface
             return [];
         }
 
-        return $data['networks'] ?? [];
+        $rawNetworks = $data['networks'] ?? $data['items'] ?? [];
+
+        if (!is_array($rawNetworks)) {
+            return [];
+        }
+
+        $result = [];
+
+        foreach ($rawNetworks as $network) {
+            if (is_string($network)) {
+                $code = $network;
+                $name = ucfirst($code);
+                $url = '#';
+            } elseif (is_array($network)) {
+                $code = (string) ($network['code'] ?? $network['network'] ?? '');
+                $name = (string) ($network['name'] ?? $code);
+                $url = (string) ($network['url'] ?? '#');
+            } else {
+                continue;
+            }
+
+            if ($code === '') {
+                continue;
+            }
+
+            $isActive = filter_var($network['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN);
+
+            if (!$isActive) {
+                continue;
+            }
+
+            $result[] = [
+                'code' => $code,
+                'name' => $name,
+                'url' => $url,
+            ];
+        }
+
+        return $result;
     }
 
     public function getWidgetData(string $lang): array

@@ -6,9 +6,16 @@ namespace App\Infrastructure;
 use App\Domain\ContentRepositoryInterface;
 use App\Domain\EventsRepositoryInterface;
 use App\Domain\NewsRepositoryInterface;
-use App\Domain\TimelineRepositoryInterface;
 use App\Domain\SocialRepositoryInterface;
 use App\Domain\TelegramRepositoryInterface;
+use App\Domain\TimelineRepositoryInterface;
+use App\Infrastructure\Database\DatabaseContentRepository;
+use App\Infrastructure\Database\DatabaseEventsRepository;
+use App\Infrastructure\Database\DatabaseNewsRepository;
+use App\Infrastructure\Database\DatabaseSocialRepository;
+use App\Infrastructure\Database\DatabaseTelegramRepository;
+use App\Infrastructure\Database\DatabaseTimelineRepository;
+use InvalidArgumentException;
 use PDO;
 
 class RepositoryFactory
@@ -20,8 +27,11 @@ class RepositoryFactory
     ): ContentRepositoryInterface {
         return match ($driver) {
             'json' => new JsonContentRepository($localesPath),
-            'database' => new DatabaseContentRepository($pdo),
-            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+            'database' => new DatabaseContentRepository(
+                self::requirePdo($pdo),
+                self::sectionFromPath($localesPath)
+            ),
+            default => throw new InvalidArgumentException("Неизвестный драйвер хранилища: $driver"),
         };
     }
 
@@ -32,8 +42,8 @@ class RepositoryFactory
     ): EventsRepositoryInterface {
         return match ($driver) {
             'json' => new JsonEventsRepository($eventsPath),
-            'database' => new DatabaseEventsRepository($pdo),
-            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+            'database' => new DatabaseEventsRepository(self::requirePdo($pdo)),
+            default => throw new InvalidArgumentException("Неизвестный драйвер хранилища: $driver"),
         };
     }
 
@@ -44,8 +54,8 @@ class RepositoryFactory
     ): NewsRepositoryInterface {
         return match ($driver) {
             'json' => new JsonNewsRepository($newsPath),
-            'database' => new DatabaseNewsRepository($pdo),
-            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+            'database' => new DatabaseNewsRepository(self::requirePdo($pdo)),
+            default => throw new InvalidArgumentException("Неизвестный драйвер хранилища: $driver"),
         };
     }
 
@@ -56,8 +66,8 @@ class RepositoryFactory
     ): TimelineRepositoryInterface {
         return match ($driver) {
             'json' => new JsonTimelineRepository($timelinePath),
-            'database' => new DatabaseTimelineRepository($pdo),
-            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+            'database' => new DatabaseTimelineRepository(self::requirePdo($pdo)),
+            default => throw new InvalidArgumentException("Неизвестный драйвер хранилища: $driver"),
         };
     }
 
@@ -68,8 +78,8 @@ class RepositoryFactory
     ): SocialRepositoryInterface {
         return match ($driver) {
             'json' => new JsonSocialRepository($socialPath),
-            'database' => new DatabaseSocialRepository($pdo),
-            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+            'database' => new DatabaseSocialRepository(self::requirePdo($pdo)),
+            default => throw new InvalidArgumentException("Неизвестный драйвер хранилища: $driver"),
         };
     }
 
@@ -80,8 +90,25 @@ class RepositoryFactory
     ): TelegramRepositoryInterface {
         return match ($driver) {
             'json' => new JsonTelegramRepository($telegramPath),
-            'database' => new DatabaseTelegramRepository($pdo),
-            default => throw new \InvalidArgumentException("Неизвестный драйвер хранилища: $driver")
+            'database' => new DatabaseTelegramRepository(self::requirePdo($pdo)),
+            default => throw new InvalidArgumentException("Неизвестный драйвер хранилища: $driver"),
         };
+    }
+
+    private static function requirePdo(?PDO $pdo): PDO
+    {
+        if ($pdo === null) {
+            throw new InvalidArgumentException('Для драйвера database требуется PDO-соединение.');
+        }
+
+        return $pdo;
+    }
+
+    private static function sectionFromPath(string $path): string
+    {
+        $normalized = rtrim(str_replace('\\', '/', $path), '/');
+        $base = basename($normalized);
+
+        return $base !== '' ? $base : 'main';
     }
 }

@@ -1,11 +1,18 @@
 {
   "items": [
     {
-      "planned_date": "2025-11-20",
-      "title": "Создан сайт",
-      "description": "Новый дизайн сайта встречайте",
-      "is_active": true,
-      "item_type": "announcement"
+      "year": "2024",
+      "title": "Начало проекта",
+      "description": "Первые идеи и наработки",
+      "type": "milestone",
+      "is_active": true
+    },
+    {
+      "year": "2026",
+      "title": "Запуск сайта",
+      "description": "Переход на базу данных",
+      "type": "release",
+      "is_active": true
     }
   ]
 }

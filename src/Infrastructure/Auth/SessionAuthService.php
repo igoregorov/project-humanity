@@ -9,6 +9,7 @@ use App\Domain\Auth\User;
 use App\Domain\Auth\UserRepositoryInterface;
 use Exception;
 use RuntimeException;
+use InvalidArgumentException;
 
 class SessionAuthService implements AuthServiceInterface
 {
@@ -78,16 +79,17 @@ class SessionAuthService implements AuthServiceInterface
                 $_SESSION[self::SESSION_USER_KEY] = $user->id;
                 $this->userRepository->updateLastLogin($user->id);
                 $this->recordLoginAttempt(true);
+                if (session_status() === PHP_SESSION_ACTIVE) {
+                    session_regenerate_id(true);
+                }
                 return $user;
             }
 
             $this->recordLoginAttempt(false);
             return null;
         } catch (RuntimeException $e) {
-            // Перебрасываем исключения связанные с бизнес-логикой
             throw $e;
         } catch (Exception $e) {
-            // Логируем технические ошибки
             error_log("Ошибка при входе пользователя: " . $e->getMessage());
             throw new RuntimeException("Внутренняя ошибка сервера. Попробуйте позже.");
         }

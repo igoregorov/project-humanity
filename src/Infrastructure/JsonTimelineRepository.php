@@ -20,14 +20,28 @@ class JsonTimelineRepository extends JsonItemsRepository implements TimelineRepo
      */
     protected function normalizeItems(array $items): array
     {
-        return array_map(function ($item) {
-            return [
-                'planned_date' => $item['year'] ?? $item['planned_date'] ?? null,
-                'title' => $item['title'] ?? '',
-                'description' => $item['description'] ?? '',
-                'is_active' => true, // Для таймлайна всегда активно
-                'item_type' => $item['item_type'] ?? $item['type'] ?? 'milestone'
+        $result = [];
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $year = trim((string) ($item['year'] ?? ''));
+
+            if ($year === '') {
+                continue;
+            }
+
+            $result[] = [
+                'year' => $year,
+                'title' => (string) ($item['title'] ?? ''),
+                'description' => (string) ($item['description'] ?? ''),
+                'type' => (string) ($item['type'] ?? $item['item_type'] ?? 'milestone'),
+                'is_active' => filter_var($item['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
             ];
-        }, $items);
+        }
+
+        return $result;
     }
 }

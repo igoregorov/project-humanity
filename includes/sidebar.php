@@ -82,8 +82,26 @@ $position = $data->position;
         <?php if (!empty($content['networks'])): ?>
             <div class="social-links">
                 <?php foreach ($content['networks'] as $network): ?>
-                    <a href="#" class="social-link social-<?= htmlspecialchars($network) ?>">
-                        <?= htmlspecialchars(ucfirst($network)) ?>
+                    <?php
+                    if (is_array($network)) {
+                        $code = (string) ($network['code'] ?? '');
+                        $name = (string) ($network['name'] ?? $code);
+                        $url  = (string) ($network['url'] ?? '#');
+                    } else {
+                        $code = (string) $network;
+                        $name = ucfirst($code);
+                        $url  = '#';
+                    }
+
+                    if ($code === '') {
+                        continue;
+                    }
+                    ?>
+                    <a href="<?= htmlspecialchars($url) ?>"
+                       class="social-link social-<?= htmlspecialchars($code) ?>"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                        <?= htmlspecialchars($name) ?>
                     </a>
                 <?php endforeach; ?>
             </div>

@@ -3,12 +3,12 @@ declare(strict_types=1);
 
 namespace App\Domain\Sidebar;
 
-use App\Infrastructure\JsonSocialRepository;
+use App\Domain\SocialRepositoryInterface;
 
-class SocialSidebarWidget extends AbstractSidebarWidget
+final class SocialSidebarWidget extends AbstractSidebarWidget
 {
     public function __construct(
-        private readonly JsonSocialRepository $socialRepository,
+        private readonly SocialRepositoryInterface $socialRepository,
         array $config
     ) {
         parent::__construct($config);
@@ -18,13 +18,14 @@ class SocialSidebarWidget extends AbstractSidebarWidget
     {
         $widgetData = $this->socialRepository->getWidgetData($lang);
         $networks = $this->socialRepository->findByLang($lang);
+        $maxItems = (int) ($this->config['max_items'] ?? 5);
 
         return [
             'type' => 'social',
             'title' => $widgetData['widget_title'],
             'no_content_message' => $widgetData['no_items'],
-            'networks' => $networks,
-            'max_items' => $this->config['max_items'] ?? 5
+            'networks' => array_slice($networks, 0, $maxItems),
+            'max_items' => $maxItems,
         ];
     }
 }
