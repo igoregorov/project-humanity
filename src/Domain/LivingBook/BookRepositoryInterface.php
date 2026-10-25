@@ -8,6 +8,8 @@ interface BookRepositoryInterface
 {
     public function findByNumber(string $uniqueNumber): ?BookEntity;
 
+    public function findById(int $id): ?BookEntity;
+
     public function findOrCreateByNumber(string $uniqueNumber): BookEntity;
 
     public function findByUserId(int $userId): ?BookEntryEntity;
@@ -22,20 +24,16 @@ interface BookRepositoryInterface
      * @return BookEntryEntity[]
      */
     public function getRecentEntries(int $limit = 50): array;
+
     /**
-     * Получает все книги вместе со всеми их отзывами для визуализации графа.
-     * Оптимизировано под чтение одним запросом JOIN или двумя отдельными SELECTs.
-     *
-     * @return array{books: list<BookEntity>, entries: list<BookEntryEntity>}
+     * @return array{books: list<array{id:int, number:string}>, entries:list<array{id:int, book_id:int, prev_id:?int, label:string}>}
      */
     public function getAllForGraph(): array;
 
     /**
-     * Возвращает историю отзывов конкретной книги, отсортированную по времени.
-     * Используется для таймлайна при клике на узел.
-     *
-     * @param int $bookId
      * @return list<BookEntryEntity>
      */
     public function getHistoryByBookId(int $bookId): array;
+
+    public function findBookIdByNumber(string $uniqueNumber): ?int;
 }

@@ -1,12 +1,14 @@
 <?php
+
 declare(strict_types=1);
-// src/View/AuthData.php
+
 namespace App\View;
 
 use App\Application\LocalizedContentService;
 use App\Domain\Auth\User;
+use App\Domain\LivingBook\BookEntryEntity;
 
-class AuthData implements TemplateDataInterface
+final class AuthData implements TemplateDataInterface
 {
     public function __construct(
         public readonly LocalizedContentService $translator,
@@ -16,6 +18,9 @@ class AuthData implements TemplateDataInterface
         public readonly array $errors = [],
         public readonly array $oldInput = [],
         public readonly string $csrf_token = '',
-        public readonly ?string $avatarUrl = null
-    ) {}
+        public readonly ?string $avatarUrl = null,
+        public readonly ?BookEntryEntity $bookEntry = null,
+        public readonly ?string $message = null
+    ) {
+    }
 }

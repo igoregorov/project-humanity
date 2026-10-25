@@ -335,48 +335,82 @@ final class DatabaseBookRepository implements BookRepositoryInterface
     }
 
     /**
-     * НОВЫЙ МЕТОД: Данные для построения графа.
-     * Оптимизирован: без JOINs, минимальный набор полей.
+     * Данные для построения графа.
      */
     public function getAllForGraph(): array
     {
-        // 1. Все книги
-        $stmtBooks = $this->pdo->query("SELECT id, unique_number FROM books");
+        $stmtBooks = $this->pdo->query(
+            'SELECT id, unique_number FROM books ORDER BY id ASC'
+        );
+
         $books = [];
+        $bookIds = [];
+
         while ($row = $stmtBooks->fetch(PDO::FETCH_ASSOC)) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id < 1 || isset($bookIds[$id])) {
+                continue;
+            }
+
+            $bookIds[$id] = true;
             $books[] = [
-                'id' => (int)$row['id'],
-                'number' => (string)$row['unique_number']
+                'id' => $id,
+                'number' => (string) ($row['unique_number'] ?? ''),
             ];
         }
 
-        // 2. Все отзывы (минимум данных для связей)
-        // Нам нужны: id, book_id, previous_entry_id (для цепочки), short_text (для лейбла)
-        $stmtEntries = $this->pdo->query("
-            SELECT id, book_id, previous_entry_id, text_response 
-            FROM book_entries 
-            ORDER BY created_at ASC
-        ");
+        $sql = <<<'SQL'
+        SELECT
+            be.id,
+            be.book_id,
+            be.previous_entry_id,
+            be.text_response,
+            be.created_at,
+            u.username
+        FROM book_entries be
+        LEFT JOIN users u ON u.id = be.user_id
+        ORDER BY be.book_id ASC, be.created_at ASC, be.id ASC
+        SQL;
 
+        $stmtEntries = $this->pdo->query($sql);
         $entries = [];
+        $entryIds = [];
+
         while ($row = $stmtEntries->fetch(PDO::FETCH_ASSOC)) {
-            $text = trim((string)$row['text_response']);
-            $label = mb_substr(strip_tags($text), 0, 20);
-            if (mb_strlen($text) > 20) {
+            $id = (int) ($row['id'] ?? 0);
+            $bookId = (int) ($row['book_id'] ?? 0);
+
+            if ($id < 1 || $bookId < 1 || !isset($bookIds[$bookId]) || isset($entryIds[$id])) {
+                continue;
+            }
+
+            $entryIds[$id] = true;
+            $text = (string) ($row['text_response'] ?? '');
+            $plainText = trim(strip_tags($text));
+            $label = mb_substr($plainText, 0, 40, 'UTF-8');
+
+            if (mb_strlen($plainText, 'UTF-8') > 40) {
                 $label .= '…';
             }
 
+            $previousId = $row['previous_entry_id'] === null
+                ? null
+                : (int) $row['previous_entry_id'];
+
             $entries[] = [
-                'id' => (int)$row['id'],
-                'book_id' => (int)$row['book_id'],
-                'prev_id' => $row['previous_entry_id'] !== null ? (int)$row['previous_entry_id'] : null,
-                'label' => $label ?: '(пусто)'
+                'id' => $id,
+                'book_id' => $bookId,
+                'prev_id' => $previousId !== null && $previousId > 0 ? $previousId : null,
+                'label' => $label !== '' ? $label : 'Отклик',
+                'username' => (string) ($row['username'] ?? 'Аноним'),
+                'created_at' => isset($row['created_at']) ? (string) $row['created_at'] : '',
+                'text_response' => $text,
             ];
         }
 
         return [
             'books' => $books,
-            'entries' => $entries
+            'entries' => $entries,
         ];
     }
 
@@ -411,5 +445,35 @@ final class DatabaseBookRepository implements BookRepositoryInterface
             isset($row['book_number']) ? (string) $row['book_number'] : null,
             isset($row['previous_username']) ? (string) $row['previous_username'] : null
         );
+    }
+
+    public function findById(int $id): ?BookEntity
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT id, unique_number, created_at
+         FROM books
+         WHERE id = :id
+         LIMIT 1'
+        );
+
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $this->hydrateBook($row) : null;
+    }
+
+    public function findBookIdByNumber(string $uniqueNumber): ?int
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT id
+         FROM books
+         WHERE unique_number = :unique_number
+         LIMIT 1'
+        );
+
+        $stmt->execute(['unique_number' => $uniqueNumber]);
+        $id = $stmt->fetchColumn();
+
+        return $id === false ? null : (int) $id;
     }
 }

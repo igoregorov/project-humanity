@@ -37,13 +37,6 @@ final class LivingBookService
         $number = $this->validateNumber($uniqueNumber);
         $text = $this->validateText($textResponse);
 
-        // Ограничение: 1 пользователь = 1 запись всего (или 1 на книгу? В задаче сказано "один отклик на одну конкретную книгу",
-        // но текущая логика existsByUserId проверяет глобально.
-        // Для MVP оставляем глобальное ограничение как в исходном коде, либо меняем логику.
-        // Судя по коду выше: existsByUserId -> глобально.
-        // Если нужно "1 на книгу", то проверка должна быть existsByUserIdAndBookId.
-        // Оставим как есть в оригинальном коде (глобально), так как это проще для старта.
-
         if ($this->bookRepository->existsByUserId($userId)) {
             throw new RuntimeException('living_book_error_duplicate_user');
         }
@@ -141,86 +134,149 @@ final class LivingBookService
     public function prepareGraphData(): array
     {
         $rawData = $this->bookRepository->getAllForGraph();
-        $books = $rawData['books'];
-        $entries = $rawData['entries'];
+        $rawBooks = is_array($rawData['books'] ?? null) ? $rawData['books'] : [];
+        $rawEntries = is_array($rawData['entries'] ?? null) ? $rawData['entries'] : [];
 
-        $nodes = [];
-        $edges = [];
+        $booksById = [];
+        $entriesById = [];
 
-        // Индексируем отзывы по книге
-        $entriesByBook = [];
-        foreach ($entries as $entry) {
-            $entriesByBook[$entry['book_id']][] = $entry;
-        }
-
-        // 1. Узлы КНИГ
-        foreach ($books as $book) {
-            $nodes[] = [
-                'id' => 'book_' . $book['id'],
-                'label' => $book['number'],
-                'group' => 'books',
-                'shape' => 'hexagon',
-                'size' => 30,
-                'color' => '#9c27b0', // Purple
-                'title' => 'Книга: ' . $book['number']
-            ];
-        }
-
-        // 2. Узлы ОТЗЫВОВ и связи
-        foreach ($books as $book) {
-            $bookEntries = $entriesByBook[$book['id']] ?? [];
-
-            if (empty($bookEntries)) {
+        foreach ($rawBooks as $book) {
+            if (!is_array($book)) {
                 continue;
             }
 
-            $previousNodeId = null;
-            $firstEntryProcessed = false;
-
-            foreach ($bookEntries as $entry) {
-                $nodeId = 'entry_' . $entry['id'];
-
-                $nodes[] = [
-                    'id' => $nodeId,
-                    'label' => $entry['label'],
-                    'group' => 'entries',
-                    'shape' => 'box',
-                    'size' => 15,
-                    'color' => '#2196f3', // Blue
-                    'title' => 'Отзыв #' . $entry['id']
-                ];
-
-                // Связь: Книга -> Первый Отзыв
-                if (!$firstEntryProcessed) {
-                    $edges[] = [
-                        'from' => 'book_' . $book['id'],
-                        'to' => $nodeId,
-                        'color' => '#aaaaaa',
-                        'width' => 2,
-                        'smooth' => true
-                    ];
-                    $firstEntryProcessed = true;
-                }
-
-                // Связь: Предыдущий Отзыв -> Текущий
-                if ($previousNodeId !== null) {
-                    $edges[] = [
-                        'from' => $previousNodeId,
-                        'to' => $nodeId,
-                        'color' => '#cccccc',
-                        'width' => 1,
-                        'dashes' => true,
-                        'arrows' => 'to'
-                    ];
-                }
-
-                $previousNodeId = $nodeId;
+            $id = filter_var($book['id'] ?? null, FILTER_VALIDATE_INT);
+            if (!is_int($id) || $id < 1 || isset($booksById[$id])) {
+                continue;
             }
+
+            $booksById[$id] = [
+                'id' => $id,
+                'number' => (string) ($book['number'] ?? ''),
+            ];
+        }
+
+        foreach ($rawEntries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $id = filter_var($entry['id'] ?? null, FILTER_VALIDATE_INT);
+            $bookId = filter_var($entry['book_id'] ?? null, FILTER_VALIDATE_INT);
+
+            if (
+                !is_int($id)
+                || $id < 1
+                || !is_int($bookId)
+                || $bookId < 1
+                || !isset($booksById[$bookId])
+                || isset($entriesById[$id])
+            ) {
+                continue;
+            }
+
+            $prevId = isset($entry['prev_id']) && $entry['prev_id'] !== ''
+                ? filter_var($entry['prev_id'], FILTER_VALIDATE_INT)
+                : null;
+
+            $entriesById[$id] = [
+                'id' => $id,
+                'book_id' => $bookId,
+                'prev_id' => is_int($prevId) && $prevId > 0 ? $prevId : null,
+                'label' => mb_substr((string) ($entry['label'] ?? 'Отклик'), 0, 80, 'UTF-8'),
+                'username' => (string) ($entry['username'] ?? 'Аноним'),
+                'created_at' => (string) ($entry['created_at'] ?? ''),
+                'text_response' => (string) ($entry['text_response'] ?? ''),
+            ];
+        }
+
+        $nodes = [];
+        $edges = [];
+        $nodeIds = [];
+        $edgeIds = [];
+
+        foreach ($booksById as $book) {
+            $id = 'book_' . $book['id'];
+            $nodeIds[$id] = true;
+
+            $nodes[] = [
+                'id' => $id,
+                'label' => 'Книга ' . $book['number'],
+                'group' => 'books',
+                'shape' => 'hexagon',
+                'color' => '#9c27b0',
+                'title' => 'Книга ' . $book['number'],
+                'details' => [
+                    'kind' => 'book',
+                    'book_number' => $book['number'],
+                ],
+            ];
+        }
+
+        foreach ($entriesById as $entry) {
+            $id = 'entry_' . $entry['id'];
+            $nodeIds[$id] = true;
+
+            $nodes[] = [
+                'id' => $id,
+                'label' => 'Отклик #' . $entry['id'] . ': ' . $entry['label'],
+                'group' => 'entries',
+                'shape' => 'box',
+                'color' => '#2196f3',
+                'title' => 'Отклик #' . $entry['id'],
+                'details' => [
+                    'kind' => 'entry',
+                    'entry_id' => $entry['id'],
+                    'book_number' => $booksById[$entry['book_id']]['number'],
+                    'username' => $entry['username'],
+                    'created_at' => $entry['created_at'],
+                    'text_response' => $entry['text_response'],
+                ],
+            ];
+        }
+
+        foreach ($entriesById as $entry) {
+            $to = 'entry_' . $entry['id'];
+
+            if ($entry['prev_id'] === null) {
+                $from = 'book_' . $entry['book_id'];
+            } else {
+                $previous = $entriesById[$entry['prev_id']] ?? null;
+
+                // Не соединяем с отсутствующим, самим собой или чужим экземпляром.
+                if (
+                    $previous === null
+                    || $previous['id'] === $entry['id']
+                    || $previous['book_id'] !== $entry['book_id']
+                ) {
+                    continue;
+                }
+
+                $from = 'entry_' . $previous['id'];
+            }
+
+            if (!isset($nodeIds[$from], $nodeIds[$to])) {
+                continue;
+            }
+
+            $edgeKey = $from . '>' . $to;
+            if (isset($edgeIds[$edgeKey])) {
+                continue;
+            }
+            $edgeIds[$edgeKey] = true;
+
+            $edges[] = [
+                'from' => $from,
+                'to' => $to,
+                'arrows' => 'to',
+                'color' => '#aaaaaa',
+                'width' => 1,
+            ];
         }
 
         return [
             'nodes' => $nodes,
-            'edges' => $edges
+            'edges' => $edges,
         ];
     }
 
@@ -229,39 +285,39 @@ final class LivingBookService
      */
     public function getBookDetails(int $bookId): array
     {
-        $history = $this->bookRepository->getHistoryByBookId($bookId);
-
-        // Получаем номер книги из первого элемента истории или делаем отдельный запрос,
-        // но так как история пустая может быть, лучше найти книгу явно.
-        // Однако, в getHistoryByBookId мы уже джойним books.
-        // Если история пуста, вернется []. Тогда номер неизвестен.
-        // Для надежности:
-        $book = $this->bookRepository->findById($bookId); // Нужно добавить этот метод в интерфейс/репо, если его нет
-        // Если findById нет, можно использовать findByNumber, но у нас тут ID.
-        // Допустим, в репозитории есть findById. Если нет - временно используем первый элемент истории.
-
-        $bookNumber = '';
-        if (!empty($history)) {
-            $bookNumber = $history[0]->getBookNumber() ?? '';
-        } elseif ($book) {
-            $bookNumber = $book->getUniqueNumber();
+        if ($bookId <= 0) {
+            return [
+                'book_id' => $bookId,
+                'book_number' => '',
+                'events' => [],
+            ];
         }
 
+        $book = $this->bookRepository->findById($bookId);
+        $history = $this->bookRepository->getHistoryByBookId($bookId);
+
         $timeline = [];
+
         foreach ($history as $entry) {
             $timeline[] = [
                 'id' => $entry->getId(),
                 'username' => $entry->getUsername() ?? 'Аноним',
-                'text' => htmlspecialchars($entry->getTextResponse(), ENT_QUOTES, 'UTF-8'),
+                'text' => htmlspecialchars(
+                    $entry->getTextResponse(),
+                    ENT_QUOTES | ENT_SUBSTITUTE,
+                    'UTF-8'
+                ),
                 'date' => $entry->getCreatedAt(),
-                'photoUrl' => $entry->getPhotoPath() ? '/uploads/books/' . basename($entry->getPhotoPath()) : null
+                'photoUrl' => $this->photoUploadService->buildPublicUrl(
+                    $entry->getPhotoPath()
+                ),
             ];
         }
 
         return [
             'book_id' => $bookId,
-            'book_number' => $bookNumber,
-            'events' => $timeline
+            'book_number' => $book?->getUniqueNumber() ?? '',
+            'events' => $timeline,
         ];
     }
 

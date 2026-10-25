@@ -4,19 +4,21 @@ declare(strict_types=1);
 
 namespace App\View;
 
-final class LivingBookData
+use App\Application\LocalizedContentService;
+
+final class LivingBookData implements TemplateDataInterface
 {
     /**
      * @param array<int, array<string, mixed>> $entries
      * @param array<string, mixed>|null $currentUserEntry
      * @param array{
-     *     success: string|null,
-     *     errors: string[],
-     *     old: array<string, mixed>
+     *     success?: string|null,
+     *     errors?: string[],
+     *     old?: array<string, mixed>
      * } $flash
      */
     public function __construct(
-        private readonly object $translator,
+        private readonly LocalizedContentService $translator,
         private readonly string $langCode,
         private readonly string $currentPage,
         private readonly array $entries,

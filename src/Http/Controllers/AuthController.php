@@ -51,7 +51,7 @@ class AuthController extends AbstractController
             action: 'login',
             errors: [],
             oldInput: [],
-            csrf_token: $this->getCsrfToken()
+            csrf_token: $this->generateCsrfToken()
         );
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
@@ -70,7 +70,7 @@ class AuthController extends AbstractController
             action: 'register',
             errors: [],
             oldInput: [],
-            csrf_token: $this->getCsrfToken()
+            csrf_token: $this->generateCsrfToken()
         );
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
@@ -78,14 +78,20 @@ class AuthController extends AbstractController
     private function showProfile(string $page, string $lang): string
     {
         $authService = $this->container->get('auth_service');
+
         if (!$authService->isLoggedIn()) {
-            header("Location: ?page=auth&action=login&lang=$lang");
+            header('Location: ?page=auth&action=login&lang=' . rawurlencode($lang));
             exit;
         }
 
         $user = $authService->getCurrentUser();
-        $authData = $this->buildProfileData($lang, $user);
-        return $this->renderPage('auth_profile.php', $authData, $page, $lang);
+
+        return $this->renderPage(
+            'auth_profile.php',
+            $this->buildProfileData($lang, $user),
+            $page,
+            $lang
+        );
     }
 
     private function processLogin(string $page, string $lang): string
@@ -105,7 +111,7 @@ class AuthController extends AbstractController
                 action: 'login',
                 errors: $errors,
                 oldInput: $oldInput,
-                csrf_token: $this->getCsrfToken(true)
+                csrf_token: $this->generateCsrfToken(true)
             );
             return $this->renderPage('auth_form.php', $authData, $page, $lang);
         }
@@ -142,7 +148,7 @@ class AuthController extends AbstractController
             action: 'login',
             errors: $errors,
             oldInput: $oldInput,
-            csrf_token: $this->getCsrfToken()
+            csrf_token: $this->generateCsrfToken()
         );
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
@@ -165,7 +171,7 @@ class AuthController extends AbstractController
                 action: 'register',
                 errors: $errors,
                 oldInput: $oldInput,
-                csrf_token: $this->getCsrfToken(true)
+                csrf_token: $this->generateCsrfToken(true)
             );
             return $this->renderPage('auth_form.php', $authData, $page, $lang);
         }
@@ -213,7 +219,7 @@ class AuthController extends AbstractController
             action: 'register',
             errors: $errors,
             oldInput: $oldInput,
-            csrf_token: $this->getCsrfToken()
+            csrf_token: $this->generateCsrfToken()
         );
         return $this->renderPage('auth_form.php', $authData, $page, $lang);
     }
@@ -340,11 +346,23 @@ class AuthController extends AbstractController
         return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
     }
 
-    private function buildProfileData(string $lang, User $user, ?string $message = null, array $errors = []): AuthData
-    {
+    private function buildProfileData(
+        string $lang,
+        User $user,
+        ?string $message = null,
+        array $errors = [],
+        array $oldInput = []
+    ): AuthData {
         /** @var AvatarUploadService $avatarService */
         $avatarService = $this->container->get('avatar_service');
-        $avatarUrl = $user->hasAvatar() ? $avatarService->getPublicUrl($user->avatarPath) : null;
+
+        $bookEntry = null;
+
+        if ($user->id !== null && $this->container->has('living_book_service')) {
+            $bookEntry = $this->container
+                ->get('living_book_service')
+                ->getUserEntry($user->id);
+        }
 
         return new AuthData(
             translator: $this->container->get('localized_content'),
@@ -352,16 +370,25 @@ class AuthController extends AbstractController
             action: 'profile',
             user: $user,
             errors: $errors,
-            oldInput: [],
-            csrf_token: $this->getCsrfToken(true),
-            avatarUrl: $avatarUrl
+            oldInput: $oldInput,
+            csrf_token: $this->generateCsrfToken(),
+            avatarUrl: $user->hasAvatar()
+                ? $avatarService->getPublicUrl($user->avatarPath)
+                : null,
+            bookEntry: $bookEntry,
+            message: $message
         );
     }
 
     private function renderProfileWithMessages(
-        string $page, string $lang, User $user, array $errors, ?string $message
+        string $page,
+        string $lang,
+        User $user,
+        array $errors,
+        ?string $message
     ): string {
         $authData = $this->buildProfileData($lang, $user, $message, $errors);
+
         return $this->renderPage('auth_profile.php', $authData, $page, $lang);
     }
 

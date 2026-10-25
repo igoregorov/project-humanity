@@ -1,0 +1,79 @@
+.living-book-graph-section {
+    margin: 1.5rem 0;
+    min-width: 0;
+}
+
+.living-book-graph {
+    width: 100%;
+    height: min(65vh, 620px);
+    min-height: 320px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.living-book-graph-status {
+    min-height: 1.5em;
+}
+
+.living-book-graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    padding: 0;
+    list-style: none;
+}
+
+.living-book-graph-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.living-book-legend-book,
+.living-book-legend-entry {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 1px solid #e0e0e0;
+}
+
+.living-book-legend-book {
+    background: #9c27b0;
+    transform: rotate(45deg);
+}
+
+.living-book-legend-entry {
+    background: #2196f3;
+    border-radius: 2px;
+}
+
+.living-book-legend-edge {
+    display: inline-block;
+    width: 24px;
+    border-top: 2px solid #aaa;
+}
+
+.living-book-node-details {
+    overflow-wrap: anywhere;
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.living-book-node-details p {
+    white-space: pre-wrap;
+}
+
+@media (max-width: 600px) {
+    .living-book-graph {
+        height: 55vh;
+        min-height: 280px;
+    }
+
+    .living-book-graph-legend {
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+}

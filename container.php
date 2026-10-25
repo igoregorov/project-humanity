@@ -148,6 +148,7 @@ $container->singleton('router', function ($c) {
     $router->addRoute('home', App\Http\Controllers\HomeController::class);
     $router->addRoute('about', App\Http\Controllers\AboutController::class);
     $router->addRoute('principles', App\Http\Controllers\PrinciplesController::class);
+    $router->addRoute('living_book', LivingBookController::class);
     $router->addRoute('auth', App\Http\Controllers\AuthController::class);
     // Пример добавления новой страницы:
     // $router->addRoute('contacts', App\Http\Controllers\ContactsController::class);
@@ -253,35 +254,22 @@ $container->singleton('avatar_service', function ($c) {
     return new App\Infrastructure\Security\AvatarUploadService($uploadDir, $publicUrlPrefix);
 });
 
-$container->set('csrf_service', static fn (): CsrfService => new CsrfService());
+$container->singleton('csrf_service', static fn (): CsrfService => new CsrfService());
+$container->singleton('flash_message_service', static fn (): FlashMessageService => new FlashMessageService());
+$container->singleton('book_photo_service', static fn (): BookPhotoUploadService => new BookPhotoUploadService());
 
-$container->set('flash_message_service', static fn (): FlashMessageService => new FlashMessageService());
+$container->singleton('book_repository', static function ($c): BookRepositoryInterface {
+    return new DatabaseBookRepository($c->get('pdo'));
+});
 
-$container->set('book_photo_service', static fn (): BookPhotoUploadService => new BookPhotoUploadService());
+$container->singleton('living_book_service', static function ($c): LivingBookService {
+    return new LivingBookService(
+        $c->get('book_repository'),
+        $c->get('book_photo_service')
+    );
+});
 
-$pdoServiceId = null;
-
-foreach (['pdo', 'db', 'database'] as $candidate) {
-    if ($container->has($candidate)) {
-        $pdoServiceId = $candidate;
-        break;
-    }
-}
-
-if ($pdoServiceId !== null) {
-    $container->set('book_repository', static function ($c) use ($pdoServiceId): BookRepositoryInterface {
-        return new DatabaseBookRepository($c->get($pdoServiceId));
-    });
-
-    $container->set('living_book_service', static function ($c): LivingBookService {
-        return new LivingBookService(
-            $c->get('book_repository'),
-            $c->get('book_photo_service')
-        );
-    });
-}
-
-$container->set(LivingBookController::class, static function ($c): LivingBookController {
+$container->singleton(LivingBookController::class, static function ($c): LivingBookController {
     return new LivingBookController($c);
 });
 

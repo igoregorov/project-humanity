@@ -62,8 +62,8 @@ jobs:
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='.gitignore' \
-            --exclude='vendor/' \
-            --exclude='node_modules/' \
+            --exclude='/vendor/' \
+            --exclude='/node_modules/' \
             --exclude='.env*' \
             --exclude='config/.env*' \
             --exclude='config/.settings.config' \

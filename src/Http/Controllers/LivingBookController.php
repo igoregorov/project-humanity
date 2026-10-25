@@ -1,236 +1,240 @@
 <?php
+
 declare(strict_types=1);
+
+// src/Http/Controllers/LivingBookController.php
 
 namespace App\Http\Controllers;
 
 use App\Application\CsrfService;
-use App\Application\FlashMessageService;
 use App\Application\LivingBookService;
+use App\Domain\Auth\AuthServiceInterface;
 use App\Domain\LivingBook\BookEntryEntity;
+use App\Infrastructure\ContainerInterface;
+use App\Infrastructure\Security\BookPhotoUploadService;
 use App\View\LivingBookData;
+use RuntimeException;
 use Throwable;
 
-final class LivingBookController
-{
-    private object $container;
+use App\Application\Exception\LivingBookValidationException;
 
-    public function __construct(object $container)
+final class LivingBookController extends AbstractController
+{
+    public function __construct(ContainerInterface $container)
     {
-        $this->container = $container;
+        parent::__construct($container);
     }
 
     public function handle(string $page, string $lang): string
     {
-        /** @var LivingBookService $service */
-        $service = $this->container->get('living_book_service');
-        /** @var FlashMessageService $flash */
-        $flash = $this->container->get('flash_message_service');
+        $action = (string) ($_GET['action'] ?? 'index');
+
+        if ($action === 'create' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+            return $this->processCreate($lang);
+        }
+
+        if ($action === 'graph-data') {
+            return $this->sendJson($this->getLivingBookService()->prepareGraphData());
+        }
+
+        if ($action === 'book-details') {
+            $bookId = filter_input(INPUT_GET, 'book_id', FILTER_VALIDATE_INT);
+
+            if (!is_int($bookId) || $bookId < 1) {
+                return $this->sendJson(['error' => 'Invalid book ID'], 400);
+            }
+
+            return $this->sendJson(
+                $this->getLivingBookService()->getBookDetails($bookId)
+            );
+        }
+
+        return $this->renderIndex($page, $lang);
+    }
+
+    private function processCreate(string $lang): string
+    {
+        /** @var AuthServiceInterface $authService */
+        $authService = $this->container->get('auth_service');
+        $user = $authService->getCurrentUser();
+
+        if ($user === null || $user->id === null) {
+            header('Location: ?page=auth&action=login&lang=' . rawurlencode($lang));
+            exit;
+        }
+
         /** @var CsrfService $csrf */
         $csrf = $this->container->get('csrf_service');
 
-        $action = $_GET['action'] ?? 'index';
-
-        try {
-            // 1. POST создание записи
-            if ($action === 'create' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-                return $this->processCreate($service, $flash, $csrf, $lang);
-            }
-
-            // 2. AJAX: Данные для графа
-            if ($action === 'graph-data') {
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode($service->prepareGraphData());
-                exit;
-            }
-
-            // 3. AJAX: Детали книги (таймлайн)
-            if ($action === 'book-details') {
-                $bookId = (int)($_GET['book_id'] ?? 0);
-                if ($bookId <= 0) {
-                    http_response_code(400);
-                    echo json_encode(['error' => 'Invalid book ID']);
-                    exit;
-                }
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode($service->getBookDetails($bookId));
-                exit;
-            }
-
-            // 4. HTML Views
-            return $this->processView($service, $flash, $csrf, $lang, $action);
-
-        } catch (Throwable $e) {
-            error_log("LivingBook Error: " . $e->getMessage());
-            // Если это AJAX запрос, вернуть ошибку в JSON
-            if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-                header('Content-Type: application/json; charset=utf-8');
-                http_response_code(500);
-                echo json_encode(['error' => 'Server error']);
-                exit;
-            }
-
-            $flash->error('living_book_db_unavailable');
-            return $this->renderErrorPage($lang);
-        }
-    }
-
-    private function processCreate(LivingBookService $service, FlashMessageService $flash, CsrfService $csrf, string $lang): string
-    {
-        $authService = $this->container->get('auth_service');
-        if (!$authService->isLoggedIn()) {
-            $flash->error('living_book_error_auth');
-            header("Location: ?page=living_book&lang=$lang");
-            exit;
-        }
-        $userId = $authService->getCurrentUser()->id;
-
-        $token = $_POST['csrf_token'] ?? '';
-        if (!$csrf->validateToken($token)) {
-            $flash->error('living_book_error_csrf');
-            header("Location: ?page=living_book&action=form&lang=$lang");
-            exit;
+        if (!$csrf->validateToken((string) ($_POST['csrf_token'] ?? ''))) {
+            return $this->renderCreateResult(
+                $lang,
+                ['general' => 'living_book_error_csrf'],
+                [
+                    'unique_number' => (string) ($_POST['unique_number'] ?? ''),
+                    'text_response' => (string) ($_POST['text_response'] ?? ''),
+                ]
+            );
         }
 
-        $number = trim((string)($_POST['unique_number'] ?? ''));
-        $text = trim((string)($_POST['text_response'] ?? ''));
         $photo = $_FILES['photo'] ?? null;
 
-        if (!is_array($photo) || ($photo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        if (!is_array($photo) || (int) ($photo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
             $photo = null;
         }
 
         try {
-            $entry = $service->createUserEntry($userId, $number, $text, $photo);
-            $filter = $entry->getBookNumber() ?? $number;
-            $flash->success('living_book_success_created');
-            header("Location: ?page=living_book&filter=" . urlencode($filter) . "&lang=$lang");
+            $this->getLivingBookService()->createUserEntry(
+                $user->id,
+                (string) ($_POST['unique_number'] ?? ''),
+                (string) ($_POST['text_response'] ?? ''),
+                $photo
+            );
+
+            header('Location: ?page=living_book&created=1&lang=' . rawurlencode($lang));
             exit;
-        } catch (\App\Application\Exception\LivingBookValidationException $e) {
-            foreach ($e->getErrors() as $key => $msgKey) {
-                $flash->error(is_string($msgKey) ? $msgKey : $key);
-            }
-            $flash->oldInput('unique_number', $number);
-            $flash->oldInput('text_response', $text);
-            header("Location: ?page=living_book&action=form&lang=$lang");
-            exit;
-        } catch (\RuntimeException $e) {
-            $flash->error($e->getMessage());
-            header("Location: ?page=living_book&action=form&lang=$lang");
-            exit;
+        } catch (LivingBookValidationException $e) {
+            $errors = $e->getErrors();
+
+            return $this->renderCreateResult(
+                $lang,
+                $errors,
+                [
+                    'unique_number' => (string) ($_POST['unique_number'] ?? ''),
+                    'text_response' => (string) ($_POST['text_response'] ?? ''),
+                ]
+            );
+        } catch (Throwable $e) {
+            error_log('Living book create error: ' . $e->getMessage());
+
+            $messageKey = $e instanceof RuntimeException
+                ? $e->getMessage()
+                : 'living_book_db_unavailable';
+
+            return $this->renderCreateResult(
+                $lang,
+                ['general' => $messageKey],
+                [
+                    'unique_number' => (string) ($_POST['unique_number'] ?? ''),
+                    'text_response' => (string) ($_POST['text_response'] ?? ''),
+                ]
+            );
         }
     }
 
-    private function processView(LivingBookService $service, FlashMessageService $flash, CsrfService $csrf, string $lang, string $action): string
+    private function renderCreateResult(string $lang, array $errors, array $oldInput): string
     {
-        $filter = trim((string)($_GET['filter'] ?? ''));
-        $entries = [];
-        $mode = 'recent';
+        /** @var AuthServiceInterface $authService */
+        $authService = $this->container->get('auth_service');
+        $user = $authService->getCurrentUser();
 
-        // 1. Определение режима и загрузка данных
-        if ($action === 'map') {
-            $mode = 'map';
-            $entries = [];
-        } elseif ($action === 'form') {
-            $mode = 'form';
-            $entries = [];
-        } elseif ($filter !== '') {
-            $mode = 'history';
-            try {
-                $entities = $service->getHistoryByNumber($filter);
-                $entries = array_map([$this, 'formatEntry'], $entities);
-            } catch (Throwable $e) {
-                error_log("LivingBook History Error: " . $e->getMessage());
-                $entries = [];
-            }
-        } else {
-            $mode = 'recent';
-            try {
-                $entities = $service->getRecentEntries(50);
-                $entries = array_map([$this, 'formatEntry'], $entities);
-            } catch (Throwable $e) {
-                error_log("LivingBook Recent Error: " . $e->getMessage());
-                $entries = [];
-            }
+        if ($user === null || $user->id === null) {
+            header('Location: ?page=auth&action=login&lang=' . rawurlencode($lang));
+            exit;
         }
 
-        // 2. Получение CSRF токена
-        $csrfToken = $csrf->getToken();
+        /** @var BookPhotoUploadService $photoService */
+        $photoService = $this->container->get('book_photo_service');
 
+        $entry = $this->getLivingBookService()->getUserEntry($user->id);
+        $authData = $this->container->get('localized_content');
 
-        $flashData = $flash->pull();
+        $profileData = new \App\View\AuthData(
+            translator: $this->container->get('localized_content'),
+            lang_code: $lang,
+            action: 'profile',
+            user: $user,
+            errors: $errors,
+            oldInput: $oldInput,
+            csrf_token: $this->container->get('csrf_service')->getToken(true),
+            avatarUrl: $user->hasAvatar()
+                ? $this->container->get('avatar_service')->getPublicUrl($user->avatarPath)
+                : null,
+            bookEntry: $entry
+        );
 
-        $successMsg = $flashData['success'] ?? null;
-        $errorMsgs = $flashData['errors'] ?? [];
-        $oldInputs = $flashData['old'] ?? [];
+        return $this->renderPage('auth_profile.php', $profileData, 'auth', $lang);
+    }
 
-        // 4. Проверка авторизации для отображения "моей записи" (опционально, но важно для UI)
-        $currentUserEntry = null;
-        $authService = $this->container->has('auth_service') ? $this->container->get('auth_service') : null;
+    private function renderIndex(string $page, string $lang): string
+    {
+        $service = $this->getLivingBookService();
+        $csrf = $this->container->get('csrf_service');
+        $entries = array_map(
+            fn (BookEntryEntity $entry): array => $this->formatEntry(
+                $entry,
+                $this->container->get('book_photo_service')
+            ),
+            $service->getRecentEntries(50)
+        );
 
-        if ($authService && $authService->isLoggedIn()) {
-            $userId = $authService->getCurrentUser()->id;
-            try {
-                $userEntry = $service->getUserEntry($userId);
-                if ($userEntry !== null) {
-                    $currentUserEntry = $this->formatEntry($userEntry);
-                }
-            } catch (Throwable $e) {
-                // Игнорируем ошибку получения своей записи, чтобы не ломать страницу
-                error_log("LivingBook User Entry Error: " . $e->getMessage());
-            }
+        $filter = trim((string) ($_GET['filter'] ?? ''));
+
+        if ($filter !== '') {
+            $history = $service->getHistoryByNumber($filter);
+            $entries = array_map(
+                fn (BookEntryEntity $entry): array => $this->formatEntry(
+                    $entry,
+                    $this->container->get('book_photo_service')
+                ),
+                $history
+            );
         }
 
-        $flashArray = [
-            'success' => $successMsg,
-            'errors' => $errorMsgs,
-            'old' => $oldInputs,
-        ];
+        $translator = $this->container->get('localized_content');
+        $flash = [];
 
-        // Определяем доступность БД (упрощенно: если сервис есть, считаем что доступна)
-        $dbAvailable = true;
+        if (isset($_GET['created'])) {
+            $flash['success'] = 'living_book_success_created';
+        }
 
         $data = new LivingBookData(
-            translator: $this->container->get('localized_content'),
+            translator: $translator,
             langCode: $lang,
             currentPage: 'living_book',
             entries: $entries,
             filterNumber: $filter !== '' ? $filter : null,
-            mode: $mode,
-            currentUserEntry: $currentUserEntry,
-            flash: $flashArray,
-            dbAvailable: $dbAvailable,
-            csrfToken: $csrfToken
+            mode: $filter === '' ? 'recent' : 'history',
+            currentUserEntry: null,
+            flash: $flash,
+            dbAvailable: true,
+            csrfToken: $csrf->getToken()
         );
 
-        // 6. Рендеринг шаблона
-        // Шаблоны в includes/page_living_book.php ожидают переменную $data
-        include dirname(__DIR__, 3) . '/includes/page_living_book.php';
-
-        return '';
+        return $this->renderPage('page_living_book.php', $data, $page, $lang);
     }
 
-    private function formatEntry(BookEntryEntity $entity): array
-    {
-        $photoService = $this->container->has('book_photo_service')
-            ? $this->container->get('book_photo_service')
-            : null;
-
+    private function formatEntry(
+        BookEntryEntity $entry,
+        BookPhotoUploadService $photoService
+    ): array {
         return [
-            'id' => $entity->getId(),
-            'book_id' => $entity->getBookId(),
-            'user_id' => $entity->getUserId(),
-            'previous_entry_id' => $entity->getPreviousEntryId(),
-            'book_number' => $entity->getBookNumber() ?? '',
-            'username' => $entity->getUsername() ?? 'Anonymous',
-            'previous_username' => $entity->getPreviousUsername(),
-            'created_at' => $entity->getCreatedAt(),
-            'text_response' => $entity->getTextResponse(),
-            'photo_url' => $photoService ? $photoService->buildPublicUrl($entity->getPhotoPath()) : null,
+            'id' => $entry->getId(),
+            'book_id' => $entry->getBookId(),
+            'user_id' => $entry->getUserId(),
+            'previous_entry_id' => $entry->getPreviousEntryId(),
+            'book_number' => $entry->getBookNumber() ?? '',
+            'username' => $entry->getUsername() ?? 'Anonymous',
+            'previous_username' => $entry->getPreviousUsername(),
+            'created_at' => $entry->getCreatedAt(),
+            'text_response' => $entry->getTextResponse(),
+            'photo_url' => $photoService->buildPublicUrl($entry->getPhotoPath()),
         ];
     }
 
-    private function renderErrorPage(string $lang): string {
-        echo "<h1>Ошибка</h1><p>Сервис временно недоступен.</p>";
-        return '';
+    private function getLivingBookService(): LivingBookService
+    {
+        return $this->container->get('living_book_service');
+    }
+
+    private function sendJson(array $payload, int $statusCode = 200): string
+    {
+        http_response_code($statusCode);
+        header('Content-Type: application/json; charset=utf-8');
+
+        return (string) json_encode(
+            $payload,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        );
     }
 }

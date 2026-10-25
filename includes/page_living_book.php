@@ -1,8 +1,9 @@
 <?php
 
-/**
- * @var array<string, mixed> $data
- */
+declare(strict_types=1);
+
+/** @var \App\View\LivingBookData $data */
+$data = $data->toArray();
 
 $translator = $data['translator'] ?? null;
 $lang = (string) ($data['lang_code'] ?? 'ru');
@@ -14,19 +15,11 @@ $flash = is_array($data['flash'] ?? null) ? $data['flash'] : [];
 $dbAvailable = (bool) ($data['dbAvailable'] ?? false);
 $csrfToken = isset($data['csrfToken']) ? (string) $data['csrfToken'] : '';
 
-$t = static function (string $key) use ($translator): string {
-    if (is_object($translator)) {
-        if (method_exists($translator, 'translate')) {
-            return (string) $translator->translate($key);
-        }
+$graphDataUrl = '?page=living_book&action=graph-data&lang=' . rawurlencode($lang);
 
-        if (method_exists($translator, 't')) {
-            return (string) $translator->t($key);
-        }
-
-        if (is_callable($translator)) {
-            return (string) $translator($key);
-        }
+$t = static function (string $key) use ($translator, $lang): string {
+    if (is_object($translator) && method_exists($translator, 'translate')) {
+        return (string) $translator->translate($lang, $key);
     }
 
     return $key;
@@ -155,6 +148,29 @@ $e = static function (mixed $value): string {
         <?php elseif ($mode === 'recent'): ?>
             <h2><?= $e($t('living_book_recent_title')) ?></h2>
         <?php endif; ?>
+
+        <section class="living-book-graph-section" aria-labelledby="living-book-graph-title">
+            <h2 id="living-book-graph-title">Граф экземпляров и откликов</h2>
+
+            <ul class="living-book-graph-legend" aria-label="Легенда графа">
+                <li><span class="living-book-legend-book" aria-hidden="true"></span> Книга</li>
+                <li><span class="living-book-legend-entry" aria-hidden="true"></span> Отклик</li>
+                <li><span class="living-book-legend-edge" aria-hidden="true"></span> Последовательность откликов</li>
+            </ul>
+
+            <p class="living-book-graph-status" data-graph-status role="status" aria-live="polite">
+                Граф загружается…
+            </p>
+
+            <div class="living-book-graph" data-living-book-graph
+                 data-graph-url="<?= $e($graphDataUrl) ?>"
+                 aria-label="Интерактивный граф книг и откликов"></div>
+
+            <section class="living-book-node-details" data-node-details aria-live="polite">
+                <h3>Детали узла</h3>
+                <p data-node-details-content>Выберите книгу или отклик на графе.</p>
+            </section>
+        </section>
 
         <?php if (empty($entries)): ?>
             <p><?= $e($t('living_book_empty')) ?></p>

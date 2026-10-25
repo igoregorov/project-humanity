@@ -1,13 +1,97 @@
 <?php
 declare(strict_types=1);
+
+// auth_profile.php
+
 /** @var \App\View\AuthData $data */
 $user = $data->user;
+$escape = static fn (mixed $value): string =>
+htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
+<section class="living-book-profile">
+    <h3>Живая Книга</h3>
+
+    <?php if ($data->message !== null): ?>
+        <p class="success-message"><?= $escape($data->message) ?></p>
+    <?php endif; ?>
+
+    <?php if (!empty($data->errors['general'])): ?>
+        <p class="error-message">
+            <?= $escape($data->translator->translate(
+                    $data->lang_code,
+                    $data->errors['general'],
+                    $data->errors['general']
+            )) ?>
+        </p>
+    <?php endif; ?>
+
+    <?php if ($data->bookEntry !== null): ?>
+        <p>Вы уже опубликовали отклик для экземпляра
+            <strong><?= $escape($data->bookEntry->getBookNumber() ?? '') ?></strong>.
+        </p>
+        <p><?= nl2br($escape($data->bookEntry->getTextResponse())) ?></p>
+
+        <p>Запись опубликована. Отклик нельзя изменить или удалить.</p>
+
+        <p>
+            <a href="?page=living_book&lang=<?= $escape($data->lang_code) ?>">
+                Перейти к Живой Книге
+            </a>
+        </p>
+    <?php else: ?>
+        <p>Добавьте номер экземпляра и свой отклик. Фото страницы можно приложить по желанию.</p>
+
+        <form
+                method="post"
+                action="?page=living_book&action=create&lang=<?= $escape($data->lang_code) ?>"
+                enctype="multipart/form-data"
+                class="living-book-form"
+        >
+            <input type="hidden" name="csrf_token" value="<?= $escape($data->csrf_token) ?>">
+
+            <label for="book-number">Номер экземпляра</label>
+            <input
+                    id="book-number"
+                    type="text"
+                    name="unique_number"
+                    maxlength="100"
+                    required
+                    value="<?= $escape($data->oldInput['unique_number'] ?? '') ?>"
+            >
+
+            <label for="book-response">Ваш отклик</label>
+            <textarea
+                    id="book-response"
+                    name="text_response"
+                    maxlength="5000"
+                    rows="8"
+                    required
+            ><?= $escape($data->oldInput['text_response'] ?? '') ?></textarea>
+            <?php if (!empty($data->errors['text_response'])): ?>
+                <p class="field-error"><?= $escape($data->errors['text_response']) ?></p>
+            <?php endif; ?>
+
+            <label for="book-photo">Фото страницы (необязательно)</label>
+            <input
+                    id="book-photo"
+                    type="file"
+                    name="photo"
+                    accept="image/jpeg"
+            >
+            <small>JPEG, максимум 25 МБ. Отзыв и загруженное фото сразу станут публичными.</small>
+
+            <button type="submit" class="btn-primary">Опубликовать отклик</button>
+        </form>
+    <?php endif; ?>
+</section>
 <section class="profile-section">
     <h2>Профиль пользователя</h2>
 
     <?php if (isset($data->errors['general'])): ?>
         <div class="error-message"><?= htmlspecialchars($data->errors['general']) ?></div>
+    <?php endif; ?>
+    <?php if (!empty($data->errors['unique_number'])): ?>
+        <p class="field-error"><?= $escape($data->errors['unique_number']) ?></p>
     <?php endif; ?>
 
     <div class="profile-info">

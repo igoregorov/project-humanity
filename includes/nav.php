@@ -15,6 +15,18 @@ use App\View\NavData;
     <a href="?page=principles&lang=<?= htmlspecialchars($data->current_lang) ?>"<?= $data->current_page === 'principles' ? ' class="active"' : '' ?>>
         <?= htmlspecialchars($data->translator->translate($data->current_lang, 'nav_principles')) ?>
     </a>
+    <a href="?page=living_book&lang=<?= htmlspecialchars($data->current_lang, ENT_QUOTES, 'UTF-8') ?>"
+            <?= $data->current_page === 'living_book' ? 'class="active"' : '' ?>>
+        <?= htmlspecialchars(
+                $data->translator->translate(
+                        $data->current_lang,
+                        'nav_living_book',
+                        'Живая Книга'
+                ),
+                ENT_QUOTES,
+                'UTF-8'
+        ) ?>
+    </a>
 
     <?php if ($data->nav_service->isUserLoggedIn()): ?>
         <a href="?page=auth&action=profile&lang=<?= htmlspecialchars($data->current_lang) ?>"<?= $data->current_page === 'auth' ? ' class="active"' : '' ?>>
