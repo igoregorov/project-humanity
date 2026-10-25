@@ -1,18 +1,13 @@
 <?php
-
 declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
 use App\Application\CsrfService;
-use App\Application\Exception\LivingBookValidationException;
 use App\Application\FlashMessageService;
 use App\Application\LivingBookService;
 use App\Domain\LivingBook\BookEntryEntity;
-use App\Infrastructure\Security\BookPhotoUploadService;
 use App\View\LivingBookData;
-use PDOException;
-use RuntimeException;
 use Throwable;
 
 final class LivingBookController
@@ -24,432 +19,218 @@ final class LivingBookController
         $this->container = $container;
     }
 
-    public function __invoke(): void
+    public function handle(string $page, string $lang): string
     {
-        $this->handle();
+        /** @var LivingBookService $service */
+        $service = $this->container->get('living_book_service');
+        /** @var FlashMessageService $flash */
+        $flash = $this->container->get('flash_message_service');
+        /** @var CsrfService $csrf */
+        $csrf = $this->container->get('csrf_service');
+
+        $action = $_GET['action'] ?? 'index';
+
+        try {
+            // 1. POST создание записи
+            if ($action === 'create' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+                return $this->processCreate($service, $flash, $csrf, $lang);
+            }
+
+            // 2. AJAX: Данные для графа
+            if ($action === 'graph-data') {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode($service->prepareGraphData());
+                exit;
+            }
+
+            // 3. AJAX: Детали книги (таймлайн)
+            if ($action === 'book-details') {
+                $bookId = (int)($_GET['book_id'] ?? 0);
+                if ($bookId <= 0) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Invalid book ID']);
+                    exit;
+                }
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode($service->getBookDetails($bookId));
+                exit;
+            }
+
+            // 4. HTML Views
+            return $this->processView($service, $flash, $csrf, $lang, $action);
+
+        } catch (Throwable $e) {
+            error_log("LivingBook Error: " . $e->getMessage());
+            // Если это AJAX запрос, вернуть ошибку в JSON
+            if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(500);
+                echo json_encode(['error' => 'Server error']);
+                exit;
+            }
+
+            $flash->error('living_book_db_unavailable');
+            return $this->renderErrorPage($lang);
+        }
     }
 
-    public function handle(): void
+    private function processCreate(LivingBookService $service, FlashMessageService $flash, CsrfService $csrf, string $lang): string
     {
-        $action = strtolower(trim((string) ($_GET['action'] ?? 'index')));
-        $lang = $this->resolveLang();
+        $authService = $this->container->get('auth_service');
+        if (!$authService->isLoggedIn()) {
+            $flash->error('living_book_error_auth');
+            header("Location: ?page=living_book&lang=$lang");
+            exit;
+        }
+        $userId = $authService->getCurrentUser()->id;
 
-        $flashService = $this->getFlashService();
-
-        if ($action === 'create') {
-            $this->create(
-                $lang,
-                $flashService,
-                $this->currentUserId(),
-                $this->container->has('living_book_service')
-            );
-
-            return;
+        $token = $_POST['csrf_token'] ?? '';
+        if (!$csrf->validateToken($token)) {
+            $flash->error('living_book_error_csrf');
+            header("Location: ?page=living_book&action=form&lang=$lang");
+            exit;
         }
 
-        $flash = $flashService->pull();
-
-        $userId = $this->currentUserId();
-        $dbAvailable = $this->container->has('living_book_service');
-        $currentUserEntry = null;
-
-        if ($dbAvailable && $userId !== null) {
-            try {
-                $entry = $this->getLivingBookService()->getUserEntry($userId);
-                $currentUserEntry = $entry !== null ? $this->formatEntry($entry) : null;
-            } catch (Throwable) {
-                $dbAvailable = false;
-                $currentUserEntry = null;
-            }
-        }
-
-        if ($action === 'form') {
-            if ($userId === null) {
-                $flashService->error('living_book_error_auth');
-                $this->redirect([
-                    'page' => 'living_book',
-                    'lang' => $lang,
-                ]);
-            }
-
-            if (!$dbAvailable) {
-                $this->render(
-                    'form',
-                    [],
-                    null,
-                    null,
-                    $flash,
-                    false,
-                    $lang,
-                    null
-                );
-
-                return;
-            }
-
-            if ($currentUserEntry !== null) {
-                $filter = (string) ($currentUserEntry['book_number'] ?? '');
-
-                if ($filter !== '') {
-                    $this->redirect([
-                        'page' => 'living_book',
-                        'filter' => $filter,
-                        'lang' => $lang,
-                    ]);
-                }
-            }
-
-            $csrfToken = $this->getCsrfService()->getToken();
-
-            $this->render(
-                'form',
-                [],
-                null,
-                $currentUserEntry,
-                $flash,
-                true,
-                $lang,
-                $csrfToken
-            );
-
-            return;
-        }
-
-        $filter = trim((string) ($_GET['filter'] ?? ''));
-        $entries = [];
-        $mode = 'recent';
-
-        if ($dbAvailable) {
-            try {
-                if ($filter !== '') {
-                    $mode = 'history';
-                    $entities = $this->getLivingBookService()->getHistoryByNumber($filter);
-                } else {
-                    $mode = 'recent';
-                    $entities = $this->getLivingBookService()->getRecentEntries(50);
-                }
-
-                $entries = array_map(
-                    fn (BookEntryEntity $entry): array => $this->formatEntry($entry),
-                    $entities
-                );
-            } catch (Throwable) {
-                $dbAvailable = false;
-                $entries = [];
-                $mode = 'recent';
-            }
-        } else {
-            $mode = 'recent';
-        }
-
-        $this->render(
-            $mode,
-            $entries,
-            $filter !== '' ? $filter : null,
-            $currentUserEntry,
-            $flash,
-            $dbAvailable,
-            $lang,
-            null
-        );
-    }
-
-    private function create(
-        string $lang,
-        FlashMessageService $flashService,
-        ?int $userId,
-        bool $dbAvailable
-    ): void {
-        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
-            $this->redirect([
-                'page' => 'living_book',
-                'action' => 'form',
-                'lang' => $lang,
-            ]);
-        }
-
-        $number = (string) ($_POST['unique_number'] ?? '');
-        $text = (string) ($_POST['text_response'] ?? '');
-
+        $number = trim((string)($_POST['unique_number'] ?? ''));
+        $text = trim((string)($_POST['text_response'] ?? ''));
         $photo = $_FILES['photo'] ?? null;
 
-        if (!is_array($photo)) {
+        if (!is_array($photo) || ($photo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
             $photo = null;
         }
 
-        if ($userId === null) {
-            $flashService->error('living_book_error_auth');
-            $flashService->oldInput('unique_number', $number);
-            $flashService->oldInput('text_response', $text);
-
-            $this->redirect([
-                'page' => 'living_book',
-                'action' => 'form',
-                'lang' => $lang,
-            ]);
-        }
-
-        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
-
-        if (!$this->getCsrfService()->validateToken($csrfToken)) {
-            $flashService->error('living_book_error_csrf');
-            $flashService->oldInput('unique_number', $number);
-            $flashService->oldInput('text_response', $text);
-
-            $this->redirect([
-                'page' => 'living_book',
-                'action' => 'form',
-                'lang' => $lang,
-            ]);
-        }
-
-        if (!$dbAvailable) {
-            $flashService->error('living_book_db_unavailable');
-
-            $this->redirect([
-                'page' => 'living_book',
-                'lang' => $lang,
-            ]);
-        }
-
         try {
-            $entry = $this->getLivingBookService()->createUserEntry(
-                $userId,
-                $number,
-                $text,
-                $photo
-            );
-
-            $filter = $entry->getBookNumber() ?? trim($number);
-
-            $flashService->success('living_book_success_created');
-
-            $this->redirect([
-                'page' => 'living_book',
-                'filter' => $filter,
-                'lang' => $lang,
-            ]);
-        } catch (LivingBookValidationException $e) {
-            foreach ($e->getErrors() as $errorKey) {
-                $flashService->error($errorKey);
+            $entry = $service->createUserEntry($userId, $number, $text, $photo);
+            $filter = $entry->getBookNumber() ?? $number;
+            $flash->success('living_book_success_created');
+            header("Location: ?page=living_book&filter=" . urlencode($filter) . "&lang=$lang");
+            exit;
+        } catch (\App\Application\Exception\LivingBookValidationException $e) {
+            foreach ($e->getErrors() as $key => $msgKey) {
+                $flash->error(is_string($msgKey) ? $msgKey : $key);
             }
-
-            $flashService->oldInput('unique_number', $number);
-            $flashService->oldInput('text_response', $text);
-
-            $this->redirect([
-                'page' => 'living_book',
-                'action' => 'form',
-                'lang' => $lang,
-            ]);
-        } catch (RuntimeException $e) {
-            $key = $e->getMessage();
-
-            if (!in_array($key, [
-                'living_book_error_photo',
-                'living_book_error_duplicate_user',
-            ], true)) {
-                $key = 'living_book_error_text';
-            }
-
-            $flashService->error($key);
-            $flashService->oldInput('unique_number', $number);
-            $flashService->oldInput('text_response', $text);
-
-            $this->redirect([
-                'page' => 'living_book',
-                'action' => 'form',
-                'lang' => $lang,
-            ]);
-        } catch (PDOException $e) {
-            if ($e->getCode() === '23000') {
-                $flashService->error('living_book_error_duplicate_user');
-            } else {
-                $flashService->error('living_book_db_unavailable');
-            }
-
-            $flashService->oldInput('unique_number', $number);
-            $flashService->oldInput('text_response', $text);
-
-            $this->redirect([
-                'page' => 'living_book',
-                'action' => 'form',
-                'lang' => $lang,
-            ]);
-        } catch (Throwable) {
-            $flashService->error('living_book_db_unavailable');
-            $flashService->oldInput('unique_number', $number);
-            $flashService->oldInput('text_response', $text);
-
-            $this->redirect([
-                'page' => 'living_book',
-                'action' => 'form',
-                'lang' => $lang,
-            ]);
+            $flash->oldInput('unique_number', $number);
+            $flash->oldInput('text_response', $text);
+            header("Location: ?page=living_book&action=form&lang=$lang");
+            exit;
+        } catch (\RuntimeException $e) {
+            $flash->error($e->getMessage());
+            header("Location: ?page=living_book&action=form&lang=$lang");
+            exit;
         }
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function formatEntry(BookEntryEntity $entry): array
+    private function processView(LivingBookService $service, FlashMessageService $flash, CsrfService $csrf, string $lang, string $action): string
     {
-        $photoService = null;
+        $filter = trim((string)($_GET['filter'] ?? ''));
+        $entries = [];
+        $mode = 'recent';
 
-        if ($this->container->has('book_photo_service')) {
-            $candidate = $this->container->get('book_photo_service');
-
-            if ($candidate instanceof BookPhotoUploadService) {
-                $photoService = $candidate;
+        // 1. Определение режима и загрузка данных
+        if ($action === 'map') {
+            $mode = 'map';
+            $entries = [];
+        } elseif ($action === 'form') {
+            $mode = 'form';
+            $entries = [];
+        } elseif ($filter !== '') {
+            $mode = 'history';
+            try {
+                $entities = $service->getHistoryByNumber($filter);
+                $entries = array_map([$this, 'formatEntry'], $entities);
+            } catch (Throwable $e) {
+                error_log("LivingBook History Error: " . $e->getMessage());
+                $entries = [];
+            }
+        } else {
+            $mode = 'recent';
+            try {
+                $entities = $service->getRecentEntries(50);
+                $entries = array_map([$this, 'formatEntry'], $entities);
+            } catch (Throwable $e) {
+                error_log("LivingBook Recent Error: " . $e->getMessage());
+                $entries = [];
             }
         }
+
+        // 2. Получение CSRF токена
+        $csrfToken = $csrf->getToken();
+
+
+        $flashData = $flash->pull();
+
+        $successMsg = $flashData['success'] ?? null;
+        $errorMsgs = $flashData['errors'] ?? [];
+        $oldInputs = $flashData['old'] ?? [];
+
+        // 4. Проверка авторизации для отображения "моей записи" (опционально, но важно для UI)
+        $currentUserEntry = null;
+        $authService = $this->container->has('auth_service') ? $this->container->get('auth_service') : null;
+
+        if ($authService && $authService->isLoggedIn()) {
+            $userId = $authService->getCurrentUser()->id;
+            try {
+                $userEntry = $service->getUserEntry($userId);
+                if ($userEntry !== null) {
+                    $currentUserEntry = $this->formatEntry($userEntry);
+                }
+            } catch (Throwable $e) {
+                // Игнорируем ошибку получения своей записи, чтобы не ломать страницу
+                error_log("LivingBook User Entry Error: " . $e->getMessage());
+            }
+        }
+
+        $flashArray = [
+            'success' => $successMsg,
+            'errors' => $errorMsgs,
+            'old' => $oldInputs,
+        ];
+
+        // Определяем доступность БД (упрощенно: если сервис есть, считаем что доступна)
+        $dbAvailable = true;
+
+        $data = new LivingBookData(
+            translator: $this->container->get('localized_content'),
+            langCode: $lang,
+            currentPage: 'living_book',
+            entries: $entries,
+            filterNumber: $filter !== '' ? $filter : null,
+            mode: $mode,
+            currentUserEntry: $currentUserEntry,
+            flash: $flashArray,
+            dbAvailable: $dbAvailable,
+            csrfToken: $csrfToken
+        );
+
+        // 6. Рендеринг шаблона
+        // Шаблоны в includes/page_living_book.php ожидают переменную $data
+        include dirname(__DIR__, 3) . '/includes/page_living_book.php';
+
+        return '';
+    }
+
+    private function formatEntry(BookEntryEntity $entity): array
+    {
+        $photoService = $this->container->has('book_photo_service')
+            ? $this->container->get('book_photo_service')
+            : null;
 
         return [
-            'id' => $entry->getId(),
-            'book_id' => $entry->getBookId(),
-            'user_id' => $entry->getUserId(),
-            'previous_entry_id' => $entry->getPreviousEntryId(),
-            'book_number' => $entry->getBookNumber() ?? '',
-            'username' => $entry->getUsername() ?? '',
-            'previous_username' => $entry->getPreviousUsername(),
-            'created_at' => $entry->getCreatedAt() ?? '',
-            'text_response' => $entry->getTextResponse(),
-            'photo_path' => $entry->getPhotoPath(),
-            'photo_url' => $photoService !== null
-                ? $photoService->buildPublicUrl($entry->getPhotoPath())
-                : null,
+            'id' => $entity->getId(),
+            'book_id' => $entity->getBookId(),
+            'user_id' => $entity->getUserId(),
+            'previous_entry_id' => $entity->getPreviousEntryId(),
+            'book_number' => $entity->getBookNumber() ?? '',
+            'username' => $entity->getUsername() ?? 'Anonymous',
+            'previous_username' => $entity->getPreviousUsername(),
+            'created_at' => $entity->getCreatedAt(),
+            'text_response' => $entity->getTextResponse(),
+            'photo_url' => $photoService ? $photoService->buildPublicUrl($entity->getPhotoPath()) : null,
         ];
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $entries
-     * @param array<string, mixed>|null $currentUserEntry
-     * @param array{
-     *     success: string|null,
-     *     errors: string[],
-     *     old: array<string, mixed>
-     * } $flash
-     */
-    private function render(
-        string $mode,
-        array $entries,
-        ?string $filterNumber,
-        ?array $currentUserEntry,
-        array $flash,
-        bool $dbAvailable,
-        string $lang,
-        ?string $csrfToken
-    ): void {
-        $data = (new LivingBookData(
-            $this->getTranslator(),
-            $lang,
-            'living_book',
-            $entries,
-            $filterNumber,
-            $mode,
-            $currentUserEntry,
-            $flash,
-            $dbAvailable,
-            $csrfToken
-        ))->toArray();
-
-        include dirname(__DIR__, 3) . '/includes/page_living_book.php';
-    }
-
-    private function getLivingBookService(): LivingBookService
-    {
-        return $this->container->get('living_book_service');
-    }
-
-    private function getCsrfService(): CsrfService
-    {
-        if ($this->container->has('csrf_service')) {
-            $service = $this->container->get('csrf_service');
-
-            if ($service instanceof CsrfService) {
-                return $service;
-            }
-        }
-
-        return new CsrfService();
-    }
-
-    private function getFlashService(): FlashMessageService
-    {
-        if ($this->container->has('flash_message_service')) {
-            $service = $this->container->get('flash_message_service');
-
-            if ($service instanceof FlashMessageService) {
-                return $service;
-            }
-        }
-
-        return new FlashMessageService();
-    }
-
-    private function getTranslator(): object
-    {
-        if ($this->container->has('translator')) {
-            $translator = $this->container->get('translator');
-
-            if (is_object($translator)) {
-                return $translator;
-            }
-        }
-
-        return new class {
-            public function translate(string $key): string
-            {
-                return $key;
-            }
-        };
-    }
-
-    private function currentUserId(): ?int
-    {
-        $id = $_SESSION['user_id'] ?? null;
-
-        if (is_int($id)) {
-            return $id > 0 ? $id : null;
-        }
-
-        if (is_string($id) && ctype_digit($id)) {
-            $intValue = (int) $id;
-
-            return $intValue > 0 ? $intValue : null;
-        }
-
-        return null;
-    }
-
-    private function resolveLang(): string
-    {
-        $candidates = [
-            $_GET['lang'] ?? null,
-            $_POST['lang'] ?? null,
-            $_SESSION['lang'] ?? null,
-            'ru',
-        ];
-
-        foreach ($candidates as $candidate) {
-            if (is_string($candidate) && in_array($candidate, ['ru', 'en'], true)) {
-                return $candidate;
-            }
-        }
-
-        return 'ru';
-    }
-
-    /**
-     * @param array<string, mixed> $params
-     */
-    private function redirect(array $params): void
-    {
-        $params['lang'] = $params['lang'] ?? $this->resolveLang();
-
-        $url = '?' . http_build_query($params, '', '&');
-
-        header('Location: ' . $url);
-        exit;
+    private function renderErrorPage(string $lang): string {
+        echo "<h1>Ошибка</h1><p>Сервис временно недоступен.</p>";
+        return '';
     }
 }

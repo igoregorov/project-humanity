@@ -26,7 +26,7 @@ final class LivingBookService
     }
 
     /**
-     * @param array<string, mixed>|null $photoFile
+     * Создание нового отклика пользователя.
      */
     public function createUserEntry(
         int $userId,
@@ -36,6 +36,13 @@ final class LivingBookService
     ): BookEntryEntity {
         $number = $this->validateNumber($uniqueNumber);
         $text = $this->validateText($textResponse);
+
+        // Ограничение: 1 пользователь = 1 запись всего (или 1 на книгу? В задаче сказано "один отклик на одну конкретную книгу",
+        // но текущая логика existsByUserId проверяет глобально.
+        // Для MVP оставляем глобальное ограничение как в исходном коде, либо меняем логику.
+        // Судя по коду выше: existsByUserId -> глобально.
+        // Если нужно "1 на книгу", то проверка должна быть existsByUserIdAndBookId.
+        // Оставим как есть в оригинальном коде (глобально), так как это проще для старта.
 
         if ($this->bookRepository->existsByUserId($userId)) {
             throw new RuntimeException('living_book_error_duplicate_user');
@@ -54,7 +61,7 @@ final class LivingBookService
                 0,
                 $book->getId(),
                 $userId,
-                null,
+                null, // previous_entry_id будет установлен в репозитории автоматически
                 $text,
                 $photoPath,
                 null
@@ -104,9 +111,6 @@ final class LivingBookService
         return $this->bookRepository->findByUserId($userId);
     }
 
-    /**
-     * @return BookEntryEntity[]
-     */
     public function getHistoryByNumber(string $uniqueNumber): array
     {
         $number = trim($uniqueNumber);
@@ -124,12 +128,141 @@ final class LivingBookService
         return $this->bookRepository->getHistoryByBookId($book->getId());
     }
 
-    /**
-     * @return BookEntryEntity[]
-     */
     public function getRecentEntries(int $limit = 50): array
     {
         return $this->bookRepository->getRecentEntries($limit);
+    }
+
+    /**
+     * Формирует данные для визуализации графа.
+     * Nodes: Книги (hexagon) + Отзывы (box).
+     * Edges: Книга -> Первый Отзыв, Отзыв_N -> Отзыв_N+1.
+     */
+    public function prepareGraphData(): array
+    {
+        $rawData = $this->bookRepository->getAllForGraph();
+        $books = $rawData['books'];
+        $entries = $rawData['entries'];
+
+        $nodes = [];
+        $edges = [];
+
+        // Индексируем отзывы по книге
+        $entriesByBook = [];
+        foreach ($entries as $entry) {
+            $entriesByBook[$entry['book_id']][] = $entry;
+        }
+
+        // 1. Узлы КНИГ
+        foreach ($books as $book) {
+            $nodes[] = [
+                'id' => 'book_' . $book['id'],
+                'label' => $book['number'],
+                'group' => 'books',
+                'shape' => 'hexagon',
+                'size' => 30,
+                'color' => '#9c27b0', // Purple
+                'title' => 'Книга: ' . $book['number']
+            ];
+        }
+
+        // 2. Узлы ОТЗЫВОВ и связи
+        foreach ($books as $book) {
+            $bookEntries = $entriesByBook[$book['id']] ?? [];
+
+            if (empty($bookEntries)) {
+                continue;
+            }
+
+            $previousNodeId = null;
+            $firstEntryProcessed = false;
+
+            foreach ($bookEntries as $entry) {
+                $nodeId = 'entry_' . $entry['id'];
+
+                $nodes[] = [
+                    'id' => $nodeId,
+                    'label' => $entry['label'],
+                    'group' => 'entries',
+                    'shape' => 'box',
+                    'size' => 15,
+                    'color' => '#2196f3', // Blue
+                    'title' => 'Отзыв #' . $entry['id']
+                ];
+
+                // Связь: Книга -> Первый Отзыв
+                if (!$firstEntryProcessed) {
+                    $edges[] = [
+                        'from' => 'book_' . $book['id'],
+                        'to' => $nodeId,
+                        'color' => '#aaaaaa',
+                        'width' => 2,
+                        'smooth' => true
+                    ];
+                    $firstEntryProcessed = true;
+                }
+
+                // Связь: Предыдущий Отзыв -> Текущий
+                if ($previousNodeId !== null) {
+                    $edges[] = [
+                        'from' => $previousNodeId,
+                        'to' => $nodeId,
+                        'color' => '#cccccc',
+                        'width' => 1,
+                        'dashes' => true,
+                        'arrows' => 'to'
+                    ];
+                }
+
+                $previousNodeId = $nodeId;
+            }
+        }
+
+        return [
+            'nodes' => $nodes,
+            'edges' => $edges
+        ];
+    }
+
+    /**
+     * Детальная информация по книге для таймлайна (AJAX response).
+     */
+    public function getBookDetails(int $bookId): array
+    {
+        $history = $this->bookRepository->getHistoryByBookId($bookId);
+
+        // Получаем номер книги из первого элемента истории или делаем отдельный запрос,
+        // но так как история пустая может быть, лучше найти книгу явно.
+        // Однако, в getHistoryByBookId мы уже джойним books.
+        // Если история пуста, вернется []. Тогда номер неизвестен.
+        // Для надежности:
+        $book = $this->bookRepository->findById($bookId); // Нужно добавить этот метод в интерфейс/репо, если его нет
+        // Если findById нет, можно использовать findByNumber, но у нас тут ID.
+        // Допустим, в репозитории есть findById. Если нет - временно используем первый элемент истории.
+
+        $bookNumber = '';
+        if (!empty($history)) {
+            $bookNumber = $history[0]->getBookNumber() ?? '';
+        } elseif ($book) {
+            $bookNumber = $book->getUniqueNumber();
+        }
+
+        $timeline = [];
+        foreach ($history as $entry) {
+            $timeline[] = [
+                'id' => $entry->getId(),
+                'username' => $entry->getUsername() ?? 'Аноним',
+                'text' => htmlspecialchars($entry->getTextResponse(), ENT_QUOTES, 'UTF-8'),
+                'date' => $entry->getCreatedAt(),
+                'photoUrl' => $entry->getPhotoPath() ? '/uploads/books/' . basename($entry->getPhotoPath()) : null
+            ];
+        }
+
+        return [
+            'book_id' => $bookId,
+            'book_number' => $bookNumber,
+            'events' => $timeline
+        ];
     }
 
     private function validateNumber(string $value): string

@@ -20,6 +20,9 @@ final class DatabaseBookRepository implements BookRepositoryInterface
         $this->pdo = $pdo;
     }
 
+    /**
+     * Ищет книгу по уникальному номеру.
+     */
     public function findByNumber(string $uniqueNumber): ?BookEntity
     {
         $stmt = $this->pdo->prepare(
@@ -36,6 +39,9 @@ final class DatabaseBookRepository implements BookRepositoryInterface
         return is_array($row) ? $this->hydrateBook($row) : null;
     }
 
+    /**
+     * Находит или создает книгу по номеру (атомарно).
+     */
     public function findOrCreateByNumber(string $uniqueNumber): BookEntity
     {
         $started = !$this->pdo->inTransaction();
@@ -83,6 +89,7 @@ final class DatabaseBookRepository implements BookRepositoryInterface
                 $this->pdo->rollBack();
             }
 
+            // Race condition handling: если кто-то успел создать параллельно
             if ($e->getCode() === '23000') {
                 $stmt = $this->pdo->prepare(
                     'SELECT id, unique_number, created_at
@@ -110,6 +117,9 @@ final class DatabaseBookRepository implements BookRepositoryInterface
         }
     }
 
+    /**
+     * Ищет единственный отзыв пользователя (для ограничения "1 ответ").
+     */
     public function findByUserId(int $userId): ?BookEntryEntity
     {
         $sql = <<<'SQL'
@@ -141,6 +151,9 @@ final class DatabaseBookRepository implements BookRepositoryInterface
         return is_array($row) ? $this->hydrateEntry($row) : null;
     }
 
+    /**
+     * Проверяет наличие отзыва у пользователя.
+     */
     public function existsByUserId(int $userId): bool
     {
         $stmt = $this->pdo->prepare(
@@ -155,6 +168,9 @@ final class DatabaseBookRepository implements BookRepositoryInterface
         return $stmt->fetchColumn() !== false;
     }
 
+    /**
+     * Возвращает ID последнего отзыва для книги (для формирования цепочки).
+     */
     public function findLatestEntryByBookId(int $bookId): ?int
     {
         $stmt = $this->pdo->prepare(
@@ -172,6 +188,9 @@ final class DatabaseBookRepository implements BookRepositoryInterface
         return $id === false ? null : (int) $id;
     }
 
+    /**
+     * Создает новый отзыв с привязкой к предыдущему.
+     */
     public function createEntry(BookEntryEntity $entry): int
     {
         $started = !$this->pdo->inTransaction();
@@ -181,6 +200,7 @@ final class DatabaseBookRepository implements BookRepositoryInterface
         }
 
         try {
+            // Блокируем последнюю запись книги, чтобы гарантировать порядок chain
             $prevStmt = $this->pdo->prepare(
                 'SELECT id
                  FROM book_entries
@@ -238,7 +258,7 @@ final class DatabaseBookRepository implements BookRepositoryInterface
     }
 
     /**
-     * @return BookEntryEntity[]
+     * История отзывов конкретной книги (с именами авторов).
      */
     public function getHistoryByBookId(int $bookId): array
     {
@@ -275,7 +295,7 @@ final class DatabaseBookRepository implements BookRepositoryInterface
     }
 
     /**
-     * @return BookEntryEntity[]
+     * Лента последних отзывов (для главной страницы index).
      */
     public function getRecentEntries(int $limit = 50): array
     {
@@ -315,7 +335,53 @@ final class DatabaseBookRepository implements BookRepositoryInterface
     }
 
     /**
-     * @param array<string, mixed> $row
+     * НОВЫЙ МЕТОД: Данные для построения графа.
+     * Оптимизирован: без JOINs, минимальный набор полей.
+     */
+    public function getAllForGraph(): array
+    {
+        // 1. Все книги
+        $stmtBooks = $this->pdo->query("SELECT id, unique_number FROM books");
+        $books = [];
+        while ($row = $stmtBooks->fetch(PDO::FETCH_ASSOC)) {
+            $books[] = [
+                'id' => (int)$row['id'],
+                'number' => (string)$row['unique_number']
+            ];
+        }
+
+        // 2. Все отзывы (минимум данных для связей)
+        // Нам нужны: id, book_id, previous_entry_id (для цепочки), short_text (для лейбла)
+        $stmtEntries = $this->pdo->query("
+            SELECT id, book_id, previous_entry_id, text_response 
+            FROM book_entries 
+            ORDER BY created_at ASC
+        ");
+
+        $entries = [];
+        while ($row = $stmtEntries->fetch(PDO::FETCH_ASSOC)) {
+            $text = trim((string)$row['text_response']);
+            $label = mb_substr(strip_tags($text), 0, 20);
+            if (mb_strlen($text) > 20) {
+                $label .= '…';
+            }
+
+            $entries[] = [
+                'id' => (int)$row['id'],
+                'book_id' => (int)$row['book_id'],
+                'prev_id' => $row['previous_entry_id'] !== null ? (int)$row['previous_entry_id'] : null,
+                'label' => $label ?: '(пусто)'
+            ];
+        }
+
+        return [
+            'books' => $books,
+            'entries' => $entries
+        ];
+    }
+
+    /**
+     * Гидратор для BookEntity
      */
     private function hydrateBook(array $row): BookEntity
     {
@@ -327,7 +393,7 @@ final class DatabaseBookRepository implements BookRepositoryInterface
     }
 
     /**
-     * @param array<string, mixed> $row
+     * Гидратор для BookEntryEntity
      */
     private function hydrateEntry(array $row): BookEntryEntity
     {
