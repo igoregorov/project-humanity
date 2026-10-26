@@ -33,6 +33,7 @@ $has_right_sidebar = $layoutData['has_right_sidebar'] ?? false;
     <meta name="description" content="<?= htmlspecialchars($description) ?>">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="/styles/styles.css">
+    <link rel="stylesheet" href="/styles/living-book-graph.css">
 </head>
 <body>
 <div class="container">
@@ -70,6 +71,8 @@ $has_right_sidebar = $layoutData['has_right_sidebar'] ?? false;
     <?= $footerHtml ?>
 
 </div>
+<script src="/vendor/vis-network/vis-network.min.js" defer></script>
+<script src="/scripts/living-book-graph.js" defer></script>
 <script src="/scripts/avatar.js" defer></script>
 </body>
 </html>

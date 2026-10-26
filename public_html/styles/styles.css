@@ -5,6 +5,7 @@
 @import './layout.css';
 @import './navigation.css';
 @import './auth.css';
+@import './living-book.css';
 
 /* Стили сайдбаров */
 @import 'sidebar/sidebar.css';
@@ -18,8 +19,6 @@
 @import 'sidebar/widgets/social-widget.css';
 @import 'sidebar/widgets/telegram-widget.css';
 
-/* Остальные глобальные стили остаются без изменений */
-/* ... существующий код ... */
 /* === Глобальный сброс стиля ссылок === */
 
 /* Все ссылки: не посещённые и посещённые - выглядят одинаково */
@@ -53,7 +52,8 @@ body {
     padding: 2rem;
 }
 
-header {
+/* Только шапка сайта, а не любой <header> внутри контента */
+.container > header {
     border-bottom: 1px solid var(--border);
     padding-bottom: 1rem;
     margin-bottom: 2rem;

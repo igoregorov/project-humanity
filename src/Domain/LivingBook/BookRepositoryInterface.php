@@ -1,26 +1,39 @@
 <?php
+
 declare(strict_types=1);
+
 namespace App\Domain\LivingBook;
 
 interface BookRepositoryInterface
 {
-    /**
-     * Найти книгу по уникальному номеру или создать новую
-     */
+    public function findByNumber(string $uniqueNumber): ?BookEntity;
+
+    public function findById(int $id): ?BookEntity;
+
     public function findOrCreateByNumber(string $uniqueNumber): BookEntity;
 
-    /**
-     * Сохранить запись владельца
-     */
-    public function saveEntry(BookEntryEntity $entry): void;
+    public function findByUserId(int $userId): ?BookEntryEntity;
+
+    public function existsByUserId(int $userId): bool;
+
+    public function findLatestEntryByBookId(int $bookId): ?int;
+
+    public function createEntry(BookEntryEntity $entry): int;
 
     /**
-     * Получить всю историю книги (все записи)
+     * @return BookEntryEntity[]
+     */
+    public function getRecentEntries(int $limit = 50): array;
+
+    /**
+     * @return array{books: list<array{id:int, number:string}>, entries:list<array{id:int, book_id:int, prev_id:?int, label:string}>}
+     */
+    public function getAllForGraph(): array;
+
+    /**
+     * @return list<BookEntryEntity>
      */
     public function getHistoryByBookId(int $bookId): array;
 
-    /**
-     * Получить последние N записей со всей системы (для главной страницы графа)
-     */
-    public function getRecentEntries(int $limit = 20): array;
+    public function findBookIdByNumber(string $uniqueNumber): ?int;
 }

@@ -1,309 +1,371 @@
 <?php
+
 declare(strict_types=1);
-// src/Http/Controllers/AuthController.php
+
 namespace App\Http\Controllers;
 
+use App\Application\CsrfService;
 use App\Domain\Auth\AuthServiceInterface;
-use App\Domain\Auth\User; // <-- ДОБАВЛЕНО
-use App\Infrastructure\Security\AvatarUploadService; // <-- ДОБАВЛЕНО
+use App\Domain\Auth\User;
+use App\Infrastructure\Security\AvatarUploadService;
 use App\Infrastructure\Security\CaptchaService;
 use App\View\AuthData;
-use DateTimeImmutable; // <-- ДОБАВЛЕНО
+use DateTimeImmutable;
 use InvalidArgumentException;
-use JetBrains\PhpStorm\NoReturn;
 use RuntimeException;
 use Throwable;
 
-class AuthController extends AbstractController
+final class AuthController extends AbstractController
 {
-    private const CSRF_TOKEN_LIFETIME = 1800; // 30 минут — с запасом на раздумья
-
-    /**
-     * @throws Throwable
-     */
     public function handle(string $page, string $lang): string
     {
-        $action = $_GET['action'] ?? 'login';
+        $action = $this->getQueryString('action', 'login');
+
         return match ($action) {
-            'login'            => $this->showLogin($page, $lang),
-            'register'         => $this->showRegister($page, $lang),
-            'profile'          => $this->showProfile($page, $lang),
-            'do_login'         => $this->processLogin($page, $lang),
-            'do_register'      => $this->processRegister($page, $lang),
-            'do_upload_avatar' => $this->processAvatarUpload($page, $lang),   // <-- НОВОЕ
-            'do_delete_avatar' => $this->processAvatarDelete($page, $lang),   // <-- НОВОЕ
-            'logout'           => $this->processLogout($page, $lang),
-            default            => $this->showLogin($page, $lang)
+            'register' => $this->showForm($page, $lang, 'register'),
+            'profile' => $this->showProfile($page, $lang),
+            'do_login' => $this->processLogin($page, $lang),
+            'do_register' => $this->processRegister($page, $lang),
+            'do_upload_avatar' => $this->processAvatarUpload($page, $lang),
+            'do_delete_avatar' => $this->processAvatarDelete($page, $lang),
+            'logout' => $this->processLogout($lang),
+            default => $this->showForm($page, $lang, 'login'),
         };
     }
 
-    private function showLogin(string $page, string $lang): string
+    private function showForm(string $page, string $lang, string $action): string
     {
-        $authService = $this->container->get('auth_service');
-        if ($authService->isLoggedIn()) {
-            header("Location: ?page=auth&action=profile&lang=$lang");
-            exit;
+        $auth = $this->authService();
+
+        if ($auth->isLoggedIn()) {
+            $this->redirect('?page=auth&action=profile&lang=' . rawurlencode($lang));
         }
 
-        $authData = new AuthData(
+        $data = new AuthData(
             translator: $this->container->get('localized_content'),
             lang_code: $lang,
-            action: 'login',
+            action: $action,
             errors: [],
             oldInput: [],
-            csrf_token: $this->getCsrfToken()
+            csrf_token: $this->csrfService()->getToken()
         );
-        return $this->renderPage('auth_form.php', $authData, $page, $lang);
-    }
 
-    private function showRegister(string $page, string $lang): string
-    {
-        $authService = $this->container->get('auth_service');
-        if ($authService->isLoggedIn()) {
-            header("Location: ?page=auth&action=profile&lang=$lang");
-            exit;
-        }
-
-        $authData = new AuthData(
-            translator: $this->container->get('localized_content'),
-            lang_code: $lang,
-            action: 'register',
-            errors: [],
-            oldInput: [],
-            csrf_token: $this->getCsrfToken()
-        );
-        return $this->renderPage('auth_form.php', $authData, $page, $lang);
+        return $this->renderPage('auth_form.php', $data, $page, $lang);
     }
 
     private function showProfile(string $page, string $lang): string
     {
-        $authService = $this->container->get('auth_service');
-        if (!$authService->isLoggedIn()) {
-            header("Location: ?page=auth&action=login&lang=$lang");
-            exit;
+        $user = $this->authService()->getCurrentUser();
+
+        if ($user === null) {
+            $this->redirect(
+                '?page=auth&action=login&lang=' . rawurlencode($lang)
+            );
         }
 
-        $user = $authService->getCurrentUser();
-        $authData = $this->buildProfileData($lang, $user);
-        return $this->renderPage('auth_profile.php', $authData, $page, $lang);
+        return $this->renderPage(
+            'auth_profile.php',
+            $this->buildProfileData($lang, $user),
+            $page,
+            $lang
+        );
     }
 
     private function processLogin(string $page, string $lang): string
     {
-        $authService = $this->container->get('auth_service');
-        $captchaService = $this->container->get('captcha_service');
+        if (!$this->isPost()) {
+            http_response_code(405);
+            header('Allow: POST');
+            return '';
+        }
+
+        $username = $this->postString('username');
+        $password = $this->postString('password');
+        $captchaCode = $this->postString('captcha');
+
         $errors = [];
-        $oldInput = [
-            'username' => $_POST['username'] ?? ''
-        ];
+        $oldInput = ['username' => $username];
 
-        if (!$this->validateCsrfToken($_POST['csrf_token'] ?? '')) {
-            $errors['general'] = 'Сессия устарела. Пожалуйста, обновите страницу и попробуйте снова.';
-            $authData = new AuthData(
-                translator: $this->container->get('localized_content'),
-                lang_code: $lang,
-                action: 'login',
-                errors: $errors,
-                oldInput: $oldInput,
-                csrf_token: $this->getCsrfToken(true)
-            );
-            return $this->renderPage('auth_form.php', $authData, $page, $lang);
-        }
+        if (!$this->validCsrf()) {
+            $errors['general'] = 'Сессия устарела. Обновите страницу и попробуйте снова.';
+        } else {
+            if ($username === '') {
+                $errors['username'] = 'Введите имя пользователя';
+            }
 
-        if (empty($_POST['username'])) {
-            $errors['username'] = 'Введите имя пользователя';
-        }
-        if (empty($_POST['password'])) {
-            $errors['password'] = 'Введите пароль';
-        }
-        if (empty($_POST['captcha'])) {
-            $errors['captcha'] = 'Введите код с картинки';
-        } elseif (!$captchaService->validate($_POST['captcha'])) {
-            $errors['captcha'] = 'Неверный код проверки';
+            if ($password === '') {
+                $errors['password'] = 'Введите пароль';
+            }
+
+            /** @var CaptchaService $captcha */
+            $captcha = $this->container->get('captcha_service');
+
+            if ($captchaCode === '') {
+                $errors['captcha'] = 'Введите код с картинки';
+            } elseif (!$captcha->validate($captchaCode)) {
+                $errors['captcha'] = 'Неверный код проверки';
+            }
         }
 
-        if (empty($errors)) {
+        if ($errors === []) {
             try {
-                $user = $authService->login($_POST['username'], $_POST['password']);
-                if ($user) {
-                    header("Location: ?page=auth&action=profile&lang=$lang");
-                    exit;
-                } else {
-                    $errors['general'] = 'Неверное имя пользователя или пароль';
+                $user = $this->authService()->login($username, $password);
+
+                if ($user !== null) {
+                    $this->redirect(
+                        '?page=auth&action=profile&lang=' . rawurlencode($lang)
+                    );
                 }
+
+                $errors['general'] = 'Неверное имя пользователя или пароль';
             } catch (RuntimeException $e) {
+                // Показываем контролируемое сообщение, а не детали ошибки БД.
                 $errors['general'] = $e->getMessage();
             }
         }
 
-        $authData = new AuthData(
+        $data = new AuthData(
             translator: $this->container->get('localized_content'),
             lang_code: $lang,
             action: 'login',
             errors: $errors,
             oldInput: $oldInput,
-            csrf_token: $this->getCsrfToken()
+            csrf_token: $this->csrfService()->getToken(true)
         );
-        return $this->renderPage('auth_form.php', $authData, $page, $lang);
+
+        return $this->renderPage('auth_form.php', $data, $page, $lang);
     }
 
     private function processRegister(string $page, string $lang): string
     {
-        $authService = $this->container->get('auth_service');
-        $captchaService = $this->container->get('captcha_service');
+        if (!$this->isPost()) {
+            http_response_code(405);
+            header('Allow: POST');
+            return '';
+        }
+
+        $username = $this->postString('username');
+        $email = $this->postString('email');
+        $password = $this->postString('password');
+        $passwordConfirm = $this->postString('password_confirm');
+        $captchaCode = $this->postString('captcha');
+
         $errors = [];
         $oldInput = [
-            'username' => $_POST['username'] ?? '',
-            'email' => $_POST['email'] ?? ''
+            'username' => $username,
+            'email' => $email,
         ];
 
-        if (!$this->validateCsrfToken($_POST['csrf_token'] ?? '')) {
-            $errors['general'] = 'Сессия устарела. Пожалуйста, обновите страницу и попробуйте снова.';
-            $authData = new AuthData(
-                translator: $this->container->get('localized_content'),
-                lang_code: $lang,
-                action: 'register',
-                errors: $errors,
-                oldInput: $oldInput,
-                csrf_token: $this->getCsrfToken(true)
-            );
-            return $this->renderPage('auth_form.php', $authData, $page, $lang);
-        }
+        if (!$this->validCsrf()) {
+            $errors['general'] = 'Сессия устарела. Обновите страницу и попробуйте снова.';
+        } else {
+            if (mb_strlen($username, 'UTF-8') < 3 || mb_strlen($username, 'UTF-8') > 50) {
+                $errors['username'] = 'Имя пользователя должно содержать от 3 до 50 символов';
+            }
 
-        if (empty($_POST['username'])) {
-            $errors['username'] = 'Введите имя пользователя';
-        }
-        if (empty($_POST['email'])) {
-            $errors['email'] = 'Введите email';
-        } elseif (!filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
-            $errors['email'] = 'Некорректный email адрес';
-        }
-        if (empty($_POST['password'])) {
-            $errors['password'] = 'Введите пароль';
-        } elseif (strlen($_POST['password']) < 8) {
-            $errors['password'] = 'Пароль должен быть не менее 8 символов';
-        }
-        if ($_POST['password'] !== ($_POST['password_confirm'] ?? '')) {
-            $errors['password_confirm'] = 'Пароли не совпадают';
-        }
-        if (empty($_POST['captcha'])) {
-            $errors['captcha'] = 'Введите код с картинки';
-        } elseif (!$captchaService->validate($_POST['captcha'])) {
-            $errors['captcha'] = 'Неверный код проверки';
-        }
+            if (
+                $email === ''
+                || mb_strlen($email, 'UTF-8') > 100
+                || filter_var($email, FILTER_VALIDATE_EMAIL) === false
+            ) {
+                $errors['email'] = 'Некорректный email адрес';
+            }
 
-        if (empty($errors)) {
-            try {
-                $user = $authService->register(
-                    $_POST['username'],
-                    $_POST['email'],
-                    $_POST['password']
-                );
-                $authService->login($_POST['username'], $_POST['password']);
-                header("Location: ?page=auth&action=profile&lang=$lang");
-                exit;
-            } catch (InvalidArgumentException $e) {
-                $errors['general'] = $e->getMessage();
+            if (strlen($password) < 8 || strlen($password) > 4096) {
+                $errors['password'] = 'Пароль должен содержать не менее 8 символов';
+            }
+
+            if ($password !== $passwordConfirm) {
+                $errors['password_confirm'] = 'Пароли не совпадают';
+            }
+
+            /** @var CaptchaService $captcha */
+            $captcha = $this->container->get('captcha_service');
+
+            if ($captchaCode === '') {
+                $errors['captcha'] = 'Введите код с картинки';
+            } elseif (!$captcha->validate($captchaCode)) {
+                $errors['captcha'] = 'Неверный код проверки';
             }
         }
 
-        $authData = new AuthData(
+        if ($errors === []) {
+            try {
+                $this->authService()->register($username, $email, $password);
+                $user = $this->authService()->login($username, $password);
+
+                if ($user === null) {
+                    $errors['general'] = 'Регистрация выполнена. Войдите в аккаунт.';
+                } else {
+                    $this->redirect(
+                        '?page=auth&action=profile&lang=' . rawurlencode($lang)
+                    );
+                }
+            } catch (InvalidArgumentException $e) {
+                $errors['general'] = $e->getMessage();
+            } catch (RuntimeException $e) {
+                error_log('Registration failed: ' . $e->getMessage());
+                $errors['general'] = 'Не удалось завершить регистрацию.';
+            }
+        }
+
+        $data = new AuthData(
             translator: $this->container->get('localized_content'),
             lang_code: $lang,
             action: 'register',
             errors: $errors,
             oldInput: $oldInput,
-            csrf_token: $this->getCsrfToken()
+            csrf_token: $this->csrfService()->getToken(true)
         );
-        return $this->renderPage('auth_form.php', $authData, $page, $lang);
+
+        return $this->renderPage('auth_form.php', $data, $page, $lang);
     }
 
-    #[NoReturn]
-    private function processLogout(string $page, string $lang): string
+    private function processLogout(string $lang): string
     {
-        $authService = $this->container->get('auth_service');
-        $authService->logout();
-        header("Location: ?page=auth&action=login&lang=$lang");
-        exit;
+        if (!$this->isPost()) {
+            http_response_code(405);
+            header('Allow: POST');
+            return '';
+        }
+
+        if (!$this->validCsrf()) {
+            http_response_code(403);
+            return 'Недействительный CSRF-токен.';
+        }
+
+        $this->authService()->logout();
+
+        $this->redirect(
+            '?page=auth&action=login&lang=' . rawurlencode($lang)
+        );
     }
 
     private function processAvatarUpload(string $page, string $lang): string
     {
-        $authService = $this->container->get('auth_service');
-        if (!$authService->isLoggedIn()) {
-            header("Location: ?page=auth&action=login&lang=$lang");
-            exit;
+        $user = $this->requireCurrentUser($lang);
+
+        if (!$this->isPost()) {
+            http_response_code(405);
+            header('Allow: POST');
+            return '';
         }
 
-        $user = $authService->getCurrentUser();
-        $errors = [];
-        $message = null;
-
-        if (!$this->validateCsrfToken($_POST['csrf_token'] ?? '')) {
-            $errors['general'] = 'Сессия устарела. Обновите страницу.';
-            return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
+        if (!$this->validCsrf()) {
+            return $this->renderProfileWithMessages(
+                $page,
+                $lang,
+                $user,
+                ['general' => 'Сессия устарела. Обновите страницу.'],
+                null
+            );
         }
 
-        if (!isset($_FILES['avatar']) || $_FILES['avatar']['error'] === UPLOAD_ERR_NO_FILE) {
-            $errors['avatar'] = 'Выберите файл для загрузки.';
-            return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
+        $file = $_FILES['avatar'] ?? null;
+
+        if (!is_array($file)) {
+            return $this->renderProfileWithMessages(
+                $page,
+                $lang,
+                $user,
+                ['avatar' => 'Выберите файл для загрузки.'],
+                null
+            );
         }
 
         /** @var AvatarUploadService $avatarService */
         $avatarService = $this->container->get('avatar_service');
         $userRepository = $this->container->get('user_repository');
 
+        $newFilename = null;
+
         try {
-            // 1. Удаляем старый аватар, если он был
-            if ($user->hasAvatar()) {
+            if ($user->id === null) {
+                throw new RuntimeException('Authenticated user has no ID.');
+            }
+
+            // Сначала сохраняем новый файл.
+            $newFilename = $avatarService->upload($file, $user->id);
+
+            $updatedUser = new User(
+                id: $user->id,
+                username: $user->username,
+                email: $user->email,
+                passwordHash: $user->passwordHash,
+                role: $user->role,
+                isActive: $user->isActive,
+                createdAt: $user->createdAt,
+                updatedAt: new DateTimeImmutable(),
+                lastLogin: $user->lastLogin,
+                avatarPath: $newFilename
+            );
+
+            // Сначала обновляем запись пользователя.
+            $userRepository->save($updatedUser);
+
+            // Старый файл удаляем только после успешного сохранения нового пути.
+            if ($user->hasAvatar() && $user->avatarPath !== $newFilename) {
                 $avatarService->delete($user->avatarPath);
             }
 
-            // 2. Загружаем новый
-            $filename = $avatarService->upload($_FILES['avatar'], $user->id);
+            $freshUser = $userRepository->findById($user->id) ?? $updatedUser;
 
-            // 3. Пересоздаём User (immutable entity) с новым avatarPath (10-й параметр)
-            $updatedUser = new User(
-                $user->id,
-                $user->username,
-                $user->email,
-                $user->passwordHash,
-                $user->role,
-                $user->isActive,
-                $user->createdAt,
-                new DateTimeImmutable(),
-                $user->lastLogin,
-                $filename
+            return $this->renderProfileWithMessages(
+                $page,
+                $lang,
+                $freshUser,
+                [],
+                'Аватар успешно загружен.'
             );
-            $userRepository->save($updatedUser);
-
-            $message = 'Аватар успешно загружен.';
-            $user = $userRepository->findById($user->id);
         } catch (InvalidArgumentException $e) {
-            $errors['avatar'] = $e->getMessage();
-        } catch (RuntimeException $e) {
-            error_log('Avatar upload error: ' . $e->getMessage());
-            $errors['avatar'] = 'Ошибка сервера при загрузке файла.';
-        }
+            return $this->renderProfileWithMessages(
+                $page,
+                $lang,
+                $user,
+                ['avatar' => $e->getMessage()],
+                null
+            );
+        } catch (Throwable $e) {
+            // Если запись в БД не удалась, удаляем только новый файл.
+            if (is_string($newFilename) && $newFilename !== '') {
+                $avatarService->delete($newFilename);
+            }
 
-        return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
+            error_log('Avatar upload error: ' . $e->getMessage());
+
+            return $this->renderProfileWithMessages(
+                $page,
+                $lang,
+                $user,
+                ['avatar' => 'Ошибка сервера при загрузке файла.'],
+                null
+            );
+        }
     }
 
     private function processAvatarDelete(string $page, string $lang): string
     {
-        $authService = $this->container->get('auth_service');
-        if (!$authService->isLoggedIn()) {
-            header("Location: ?page=auth&action=login&lang=$lang");
-            exit;
+        $user = $this->requireCurrentUser($lang);
+
+        if (!$this->isPost()) {
+            http_response_code(405);
+            header('Allow: POST');
+            return '';
         }
 
-        $user = $authService->getCurrentUser();
-        $errors = [];
-        $message = null;
+        if (!$this->validCsrf()) {
+            return $this->renderProfileWithMessages(
+                $page,
+                $lang,
+                $user,
+                ['general' => 'Сессия устарела. Обновите страницу.'],
+                null
+            );
+        }
 
-        if (!$this->validateCsrfToken($_POST['csrf_token'] ?? '')) {
-            $errors['general'] = 'Сессия устарела. Обновите страницу.';
-            return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
+        if ($user->id === null) {
+            http_response_code(401);
+            return '';
         }
 
         /** @var AvatarUploadService $avatarService */
@@ -311,40 +373,67 @@ class AuthController extends AbstractController
         $userRepository = $this->container->get('user_repository');
 
         try {
+            $updatedUser = new User(
+                id: $user->id,
+                username: $user->username,
+                email: $user->email,
+                passwordHash: $user->passwordHash,
+                role: $user->role,
+                isActive: $user->isActive,
+                createdAt: $user->createdAt,
+                updatedAt: new DateTimeImmutable(),
+                lastLogin: $user->lastLogin,
+                avatarPath: null
+            );
+
+            $userRepository->save($updatedUser);
+
             if ($user->hasAvatar()) {
                 $avatarService->delete($user->avatarPath);
             }
 
-            // Пересоздаём User с avatarPath = null
-            $updatedUser = new User(
-                $user->id,
-                $user->username,
-                $user->email,
-                $user->passwordHash,
-                $user->role,
-                $user->isActive,
-                $user->createdAt,
-                new DateTimeImmutable(),
-                $user->lastLogin,
-                null // avatarPath
+            return $this->renderProfileWithMessages(
+                $page,
+                $lang,
+                $userRepository->findById($user->id) ?? $updatedUser,
+                [],
+                'Аватар удалён.'
             );
-            $userRepository->save($updatedUser);
-
-            $message = 'Аватар удалён.';
-            $user = $userRepository->findById($user->id);
         } catch (Throwable $e) {
             error_log('Avatar delete error: ' . $e->getMessage());
-            $errors['avatar'] = 'Не удалось удалить аватар.';
-        }
 
-        return $this->renderProfileWithMessages($page, $lang, $user, $errors, $message);
+            return $this->renderProfileWithMessages(
+                $page,
+                $lang,
+                $user,
+                ['avatar' => 'Не удалось удалить аватар.'],
+                null
+            );
+        }
     }
 
-    private function buildProfileData(string $lang, User $user, ?string $message = null, array $errors = []): AuthData
-    {
+    private function buildProfileData(
+        string $lang,
+        User $user,
+        ?string $message = null,
+        array $errors = [],
+        array $oldInput = []
+    ): AuthData {
         /** @var AvatarUploadService $avatarService */
         $avatarService = $this->container->get('avatar_service');
-        $avatarUrl = $user->hasAvatar() ? $avatarService->getPublicUrl($user->avatarPath) : null;
+
+        $bookEntry = null;
+
+        if ($user->id !== null && $this->container->has('living_book_service')) {
+            try {
+                $bookEntry = $this->container
+                    ->get('living_book_service')
+                    ->getUserEntry($user->id);
+            } catch (Throwable $e) {
+                error_log('Unable to load Living Book entry: ' . $e->getMessage());
+                $errors['general'] ??= 'Не удалось загрузить данные Живой книги.';
+            }
+        }
 
         return new AuthData(
             translator: $this->container->get('localized_content'),
@@ -352,41 +441,83 @@ class AuthController extends AbstractController
             action: 'profile',
             user: $user,
             errors: $errors,
-            oldInput: [],
-            csrf_token: $this->getCsrfToken(true),
-            avatarUrl: $avatarUrl
+            oldInput: $oldInput,
+            csrf_token: $this->csrfService()->getToken(),
+            avatarUrl: $user->hasAvatar()
+                ? $avatarService->getPublicUrl((string) $user->avatarPath)
+                : null,
+            bookEntry: $bookEntry,
+            message: $message
         );
     }
 
     private function renderProfileWithMessages(
-        string $page, string $lang, User $user, array $errors, ?string $message
+        string $page,
+        string $lang,
+        User $user,
+        array $errors,
+        ?string $message
     ): string {
-        $authData = $this->buildProfileData($lang, $user, $message, $errors);
-        return $this->renderPage('auth_profile.php', $authData, $page, $lang);
+        return $this->renderPage(
+            'auth_profile.php',
+            $this->buildProfileData($lang, $user, $message, $errors),
+            $page,
+            $lang
+        );
     }
 
-    private function getCsrfToken(bool $forceNew = false): string
+    private function requireCurrentUser(string $lang): User
     {
-        if (
-            $forceNew
-            || empty($_SESSION['csrf_token'])
-            || empty($_SESSION['csrf_token_time'])
-            || (time() - $_SESSION['csrf_token_time']) > self::CSRF_TOKEN_LIFETIME
-        ) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-            $_SESSION['csrf_token_time'] = time();
+        $user = $this->authService()->getCurrentUser();
+
+        if ($user === null) {
+            $this->redirect(
+                '?page=auth&action=login&lang=' . rawurlencode($lang)
+            );
         }
-        return $_SESSION['csrf_token'];
+
+        return $user;
     }
 
-    private function validateCsrfToken(string $token): bool
+    private function validCsrf(): bool
     {
-        if (empty($token) || empty($_SESSION['csrf_token'])) {
-            return false;
-        }
-        if ((time() - ($_SESSION['csrf_token_time'] ?? 0)) > self::CSRF_TOKEN_LIFETIME) {
-            return false;
-        }
-        return hash_equals($_SESSION['csrf_token'], $token);
+        $token = $this->postString('csrf_token');
+
+        return $token !== '' && $this->csrfService()->validateToken($token);
+    }
+
+    private function postString(string $key): string
+    {
+        $value = $_POST[$key] ?? '';
+
+        return is_string($value) ? trim($value) : '';
+    }
+
+    private function getQueryString(string $key, string $default): string
+    {
+        $value = $_GET[$key] ?? $default;
+
+        return is_string($value) ? $value : $default;
+    }
+
+    private function isPost(): bool
+    {
+        return strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'POST';
+    }
+
+    private function authService(): AuthServiceInterface
+    {
+        return $this->container->get('auth_service');
+    }
+
+    private function csrfService(): CsrfService
+    {
+        return $this->container->get('csrf_service');
+    }
+
+    private function redirect(string $location): never
+    {
+        header('Location: ' . $location, true, 303);
+        exit;
     }
 }
