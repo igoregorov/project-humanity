@@ -1,0 +1,416 @@
+/* styles/living-book.css — блок «Живая Книга» в профиле и форма отклика */
+
+.living-book-profile {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem;
+    border-top: 1px solid rgba(76, 201, 240, 0.2);
+}
+
+.living-book-profile h3 {
+    color: var(--accent);
+    text-align: center;
+    font-size: 1.5rem;
+    margin: 0 0 1rem;
+}
+
+.living-book-intro {
+    margin: 0 0 1.5rem;
+    opacity: 0.85;
+}
+
+/* --- Форма: элементы друг под другом --- */
+.living-book-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
+}
+
+.living-book-form > label {
+    margin-top: 1rem;
+    font-weight: bold;
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+}
+
+.living-book-form > label:first-of-type {
+    margin-top: 0;
+}
+
+.living-book-form input[type="text"],
+.living-book-form textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.living-book-form textarea {
+    min-height: 10rem;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.living-book-form input[type="text"]:focus,
+.living-book-form textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(76, 201, 240, 0.2);
+}
+
+.living-book-form input.error,
+.living-book-form textarea.error {
+    border-color: #e74c3c;
+    box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
+}
+
+/* Поле выбора файла */
+.living-book-form input[type="file"] {
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
+.living-book-form input[type="file"]::file-selector-button {
+    margin-right: 1rem;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.living-book-form input[type="file"]::file-selector-button:hover {
+    background: rgba(76, 201, 240, 0.1);
+}
+
+/* Подсказки, предупреждения, ошибки */
+.living-book-form .hint,
+.living-book-form small {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    opacity: 0.6;
+}
+
+.living-book-form .warning {
+    margin: 0.5rem 0 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    color: #f0c674;
+    background: rgba(240, 198, 116, 0.08);
+    border: 1px solid rgba(240, 198, 116, 0.3);
+    border-radius: 4px;
+}
+
+.living-book-form .field-error {
+    margin: 0;
+}
+
+/* --- Уже опубликованный отклик --- */
+.living-book-published {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.living-book-published p {
+    margin: 0 0 1rem;
+}
+
+.living-book-published-text {
+    margin: 0 0 1rem;
+    padding: 1rem 1.25rem;
+    border-left: 3px solid var(--accent);
+    background: rgba(76, 201, 240, 0.05);
+    overflow-wrap: anywhere;
+}
+
+.living-book-published-note {
+    font-size: 0.85rem;
+    opacity: 0.7;
+}
+
+@media (max-width: 768px) {
+    .living-book-profile {
+        padding: 1.5rem 1rem;
+    }
+
+    .living-book-form,
+    .living-book-published {
+        padding: 1.5rem;
+    }
+}
+
+/* =========================================================================
+   СТРАНИЦА «ЖИВАЯ КНИГА»
+   ========================================================================= */
+
+.living-book-page h1 {
+    font-size: 2rem;
+    margin: 0 0 0.5rem;
+}
+
+.living-book-subtitle {
+    margin: 0 0 2rem;
+    opacity: 0.8;
+}
+
+.living-book-page h2 {
+    color: var(--accent);
+    font-size: 1.4rem;
+    margin: 2rem 0 1rem;
+}
+
+/* Форма добавления отклика на странице — не растягиваем на всю ширину */
+.living-book-page .living-book-form {
+    max-width: 700px;
+}
+
+/* --- Уведомления --- */
+.alert {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+    border: 1px solid;
+    font-family: 'Courier New', monospace;
+}
+
+.alert-success {
+    background: rgba(46, 204, 113, 0.2);
+    border-color: rgba(46, 204, 113, 0.3);
+    color: #2ecc71;
+}
+
+.alert-error {
+    background: rgba(231, 76, 60, 0.2);
+    border-color: rgba(231, 76, 60, 0.3);
+    color: #e74c3c;
+}
+
+.alert-warning {
+    background: rgba(240, 198, 116, 0.08);
+    border-color: rgba(240, 198, 116, 0.3);
+    color: #f0c674;
+}
+
+/* --- Фильтр по номеру экземпляра --- */
+.living-book-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 0 0 2rem;
+    padding: 1.25rem 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.living-book-filter label {
+    font-weight: bold;
+}
+
+.living-book-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: stretch;
+}
+
+.living-book-filter-row input[type="text"] {
+    flex: 1 1 220px;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.living-book-filter-row input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(76, 201, 240, 0.2);
+}
+
+.living-book-filter-row input::placeholder,
+.living-book-form textarea::placeholder,
+.living-book-form input::placeholder {
+    color: var(--text);
+    opacity: 0.4;
+}
+
+/* .btn-primary по умолчанию width: 100% и margin-top — в строке фильтра это не нужно */
+.living-book-filter-row .btn-primary {
+    width: auto;
+    margin-top: 0;
+    padding: 0.75rem 1.5rem;
+}
+
+.living-book-filter-row .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.75rem 1.25rem;
+}
+
+/* --- Список откликов --- */
+.living-book-empty {
+    opacity: 0.7;
+    font-style: italic;
+}
+
+.living-book-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: 1.5rem;
+}
+
+.living-book-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+    padding: 1.25rem 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: border-color 0.3s ease;
+}
+
+.living-book-card:hover {
+    border-color: rgba(76, 201, 240, 0.5);
+}
+
+.living-book-card--mine {
+    border-color: var(--accent);
+    background: rgba(76, 201, 240, 0.06);
+}
+
+.living-book-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(76, 201, 240, 0.2);
+}
+
+.living-book-card-number {
+    color: var(--accent);
+    font-weight: bold;
+    font-size: 1.1rem;
+    overflow-wrap: anywhere;
+}
+
+.living-book-card-label {
+    display: block;
+    color: var(--text);
+    font-size: 0.75rem;
+    font-weight: normal;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    opacity: 0.6;
+}
+
+.badge {
+    flex-shrink: 0;
+    padding: 0.2rem 0.6rem;
+    background: rgba(76, 201, 240, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(76, 201, 240, 0.4);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.living-book-card-meta {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.living-book-card-meta > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.living-book-card-meta dt {
+    opacity: 0.6;
+}
+
+.living-book-card-meta dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.living-book-text {
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.living-book-photo {
+    margin: 0;
+}
+
+.living-book-photo img {
+    display: block;
+    width: 100%;
+    max-height: 320px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    transition: opacity 0.3s ease;
+}
+
+.living-book-photo a:hover img {
+    opacity: 0.85;
+}
+
+.living-book-card-date {
+    margin-top: auto; /* дата прижата к низу карточки */
+    font-size: 0.8rem;
+    opacity: 0.6;
+}
+
+@media (max-width: 600px) {
+    .living-book-page h1 {
+        font-size: 1.6rem;
+    }
+
+    .living-book-filter {
+        padding: 1rem;
+    }
+
+    .living-book-filter-row {
+        flex-direction: column;
+    }
+
+    .living-book-filter-row .btn-primary,
+    .living-book-filter-row .btn-secondary {
+        width: 100%;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+}
+

@@ -27,7 +27,8 @@ class PageDataService
             current_lang: $lang_code,
             current_page: $page,
             translator: $translator,
-            nav_service: $navService
+            nav_service: $navService,
+            csrf_token: $this->container->get('csrf_service')->getToken(),
         );
 
         $footerData = new FooterData(

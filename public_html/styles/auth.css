@@ -123,12 +123,24 @@
     text-decoration: none;
     display: inline-block;
     font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    line-height: 1.5;
+    cursor: pointer;
     transition: all 0.3s ease;
 }
 
 .btn-secondary:hover {
     background: rgba(76, 201, 240, 0.1);
     transform: translateY(-1px);
+}
+
+a.btn-secondary:link,
+a.btn-secondary:visited {
+    color: var(--accent);
+}
+
+.btn-secondary:hover {
+    text-decoration: none;
 }
 
 .auth-links {
@@ -200,8 +212,27 @@
 }
 
 .profile-actions {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 1.5rem 2rem 0;
+    border-top: 1px solid rgba(76, 201, 240, 0.2);
     text-align: center;
-    margin-top: 2rem;
+}
+
+.profile-actions form {
+    margin: 0;
+}
+
+.profile-actions .btn-secondary {
+    min-width: 200px;
+    padding: 0.75rem 2rem;
+}
+
+/* При наведении «Выйти» подсвечивается красным */
+.profile-actions .btn-secondary:hover {
+    color: #e74c3c;
+    border-color: #e74c3c;
+    background: rgba(231, 76, 60, 0.1);
 }
 
 /* Успешные сообщения */
@@ -287,9 +318,7 @@
    ========================================================================= */
 
 .avatar-block {
-    margin-top: 2rem;
-    padding-top: 2rem;
-    border-top: 1px solid rgba(76, 201, 240, 0.2);
+    margin-bottom: 2rem;
 }
 
 .avatar-block h3 {
@@ -431,6 +460,11 @@
     width: auto;
     margin-top: 0;
     padding: 0.5rem 1.2rem;
+}
+
+.avatar-upload-form .field-error {
+    text-align: center;
+    margin-top: 0.5rem;
 }
 
 /* =========================================================================
