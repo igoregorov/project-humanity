@@ -165,7 +165,7 @@ final class LivingBookController extends AbstractController
                 $entry,
                 $this->container->get('book_photo_service')
             ),
-            $service->getRecentEntries(50)
+            $service->getRecentEntries(15)
         );
 
         $filter = trim((string) ($_GET['filter'] ?? ''));

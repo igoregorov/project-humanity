@@ -297,7 +297,7 @@ final class DatabaseBookRepository implements BookRepositoryInterface
     /**
      * Лента последних отзывов (для главной страницы index).
      */
-    public function getRecentEntries(int $limit = 50): array
+    public function getRecentEntries(int $limit = 10): array
     {
         $limit = max(1, min(200, $limit));
 

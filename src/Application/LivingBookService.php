@@ -121,7 +121,7 @@ final class LivingBookService
         return $this->bookRepository->getHistoryByBookId($book->getId());
     }
 
-    public function getRecentEntries(int $limit = 50): array
+    public function getRecentEntries(int $limit = 10): array
     {
         return $this->bookRepository->getRecentEntries($limit);
     }
