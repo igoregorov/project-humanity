@@ -1,0 +1,23 @@
+{
+  "id": "project-humanity",
+  "title": "Проект Человечество: реальная утопия",
+  "language": "ru",
+  "format": "markdown",
+  "chapters": [
+    {
+      "id": "chapter-1",
+      "file": "chapters/01.md",
+      "title": "Мир, который можно построить"
+    },
+    {
+      "id": "chapter-2",
+      "file": "chapters/02.md",
+      "title": "От конкуренции к сотрудничеству"
+    },
+    {
+      "id": "chapter-3",
+      "file": "chapters/03.md",
+      "title": "Институты доверия"
+    }
+  ]
+}
