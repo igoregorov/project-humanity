@@ -1,297 +1,155 @@
-# 🌍 Project Humanity
+# Project Humanity
 
-Сайт-визитка международного проекта `projecthumanity.space`. Самописный, без CMS, без фреймворков — чистый PHP с претензией на архитектуру.
+Многоязычный сайт проекта «Человечество: реальная утопия». Включает информационные страницы, книгу для чтения онлайн, регистрацию пользователей и раздел «Живая Книга» с откликами читателей.
 
-> *«Мы не используем WordPress, потому что можем».*
+## Возможности
 
-## 📋 О проекте
+- Интерфейс на русском и английском языках.
+- Главная страница, разделы «О проекте» и «Принципы».
+- Просмотр книги онлайн и ссылки на скачивание FB2 и PDF.
+- Регистрация, вход и профиль пользователя с загрузкой аватара.
+- CAPTCHA и CSRF-защита форм.
+- «Живая Книга»: публикация отклика на экземпляр книги, история откликов и интерактивный граф.
+- Виджеты событий, новостей, таймлайна, социальных сетей и Telegram.
+- Хранение контента в JSON-файлах или MySQL.
 
-Сайт рассказывает о миссии проекта, его принципах, показывает новости и события. Поддерживает несколько языков, имеет авторизацию пользователей и систему виджетов в сайдбарах.
+## Требования
 
-**Миссия сайта** — не просто визитка, а живая платформа с контентом, который можно редактировать через JSON-файлы или (в перспективе) через базу данных.
+- PHP с поддержкой возможностей, используемых проектом (в частности, `mbstring`, `PDO`, `fileinfo`, `GD` и `DOM`).
+- Composer.
+- MySQL — для режима хранения в базе данных и функций «Живой Книги».
+- Веб-сервер, настроенный на каталог `public_html` как корень сайта.
 
-## 🛠 Технологический стек
+## Структура проекта
 
-| Компонент | Версия / Технология |
-|-----------|---------------------|
-| Язык | PHP 8.1 (strict_types everywhere) |
-| Веб-сервер | Apache 2.4 |
-| СУБД | MariaDB 10.x |
-| ОС | Ubuntu 22.04 |
-| Шрифты | TTF (arial.ttf) для капчи |
-| Локализация | JSON-файлы в `locales/` |
-
-**Никаких внешних фреймворков.** Весь DI-контейнер, роутер, ORM-подобные репозитории — написаны с нуля.
-
-## 🏗 Архитектура
-
-Проект построен по принципу слоёв, напоминающему упрощённую версию Clean Architecture:
-
-```
-┌─────────────────────────────────────────┐
-│  Http (Controllers, Router, Request)    │  ← точка входа запроса
-├─────────────────────────────────────────┤
-│  Application (Services, Managers)       │  ← бизнес-логика
-├─────────────────────────────────────────┤
-│  Domain (Interfaces, Entities)          │  ← ядро, не знает о внешнем мире
-├─────────────────────────────────────────┤
-│  Infrastructure (DB, JSON, Auth, ...)   │  ← конкретные реализации
-├─────────────────────────────────────────┤
-│  View (Templates, Data DTO)             │  ← рендеринг HTML
-└─────────────────────────────────────────┘
-```
-
-### Ключевые компоненты
-
-- **`SimpleContainer`** — собственный DI-контейнер с поддержкой `singleton`, `factory` и `set`
-- **`Router`** — простой маршрутизатор на основе GET-параметров (`?page=home&lang=ru`)
-- **`RepositoryFactory`** — фабрика репозиториев, выбирающая драйвер (JSON / Database) по конфигу
-- **`DatabaseConnectionManager`** — ленивое подключение к БД с health-check
-- **`SidebarWidgetFactory`** — фабрика виджетов для сайдбаров
-
-## 📁 Структура проекта
-
-```
-projecthumanity.space/
-├── index.php                      # Точка входа
-├── captcha.php                    # Генератор капчи
-├── run_migrations.php             # CLI-скрипт миграций БД
-├── check_db_status.php            # Диагностика подключения к БД
-│
-├── app/
-│   └── bootstrap.php              # Инициализация, хендлеры ошибок, сессии
-│
-├── config/
-│   ├── .env.production            # Переменные окружения (продакшн)
-│   ├── languages.json             # Поддерживаемые языки
-│   └── .settings.config           # Флаги фич (DB_IS_ACTIVE, и т.д.)
-│
-├── .env.local                     # Локальные переменные окружения
-├── container.php                  # Регистрация всех сервисов в DI
-├── config.php                     # Загрузка конфигурации
-│
-├── src/
-│   ├── Application/               # Сервисы приложения
-│   │   ├── ContentManager.php     # Работа с новостями и событиями
-│   │   ├── EventsService.php
-│   │   ├── NewsService.php
-│   │   ├── LocalizedContentService.php
-│   │   ├── NavService.php
-│   │   ├── PageDataService.php
-│   │   └── SidebarManager.php
-│   │
-│   ├── Domain/                    # Ядро (интерфейсы и сущности)
-│   │   ├── Auth/                  # User, UserRepositoryInterface, AuthServiceInterface
-│   │   ├── Sidebar/               # Виджеты и их интерфейсы
-│   │   ├── ContentRepositoryInterface.php
-│   │   ├── EventsRepositoryInterface.php
-│   │   ├── NewsRepositoryInterface.php
-│   │   ├── TimelineRepositoryInterface.php
-│   │   ├── SocialRepositoryInterface.php
-│   │   └── TelegramRepositoryInterface.php
-│   │
-│   ├── Http/                      # HTTP-слой
-│   │   ├── Controllers/           # Контроллеры страниц
-│   │   ├── Router.php
-│   │   ├── RequestHandler.php
-│   │   ├── ViewRenderer.php
-│   │   └── functions.php          # sendCleanErrorPage()
-│   │
-│   ├── Infrastructure/            # Реализации
-│   │   ├── Auth/                  # SessionAuthService, UserRepositories
-│   │   ├── Database/              # ConnectionManager, HealthCheck
-│   │   ├── Security/              # CaptchaService
-│   │   ├── ConfigLoader.php
-│   │   ├── DotEnv.php
-│   │   ├── EnvironmentDetector.php
-│   │   ├── SimpleContainer.php
-│   │   ├── RepositoryFactory.php
-│   │   ├── Json*Repository.php    # JSON-реализации
-│   │   └── Database*Repository.php # DB-реализации (в процессе)
-│   │
-│   ├── Services/
-│   │   └── LanguageService.php
-│   │
-│   └── View/                      # DTO для шаблонов
-│       ├── AuthData.php
-│       ├── FooterData.php
-│       ├── NavData.php
-│       ├── MainContentData.php
-│       ├── PageAboutData.php
-│       ├── PagePrinciplesData.php
-│       ├── SidebarData.php
-│       └── TemplateDataInterface.php
-│
-├── includes/                      # PHP-шаблоны
-│   ├── layout.php
-│   ├── nav.php
-│   ├── footer.php
-│   ├── sidebar.php
-│   ├── main_content.php
-│   ├── auth_form.php
-│   ├── auth_profile.php
-│   ├── page_about.php
-│   ├── page_principles.php
-│   └── helpers.php                # sanitizeHtml()
-│
-├── locales/                       # JSON с переводами и контентом
-│   ├── main/
-│   ├── about/
-│   ├── events/
-│   ├── news/
-│   ├── principles/
-│   ├── timeline/
-│   ├── social/
-│   └── telegram/
-│
-├── migrations/                    # SQL-файлы миграций
-├── storage/                       # Файловое хранилище (users.json)
-└── vendor/                        # Composer (только автозагрузка)
+```text
+app/             Инициализация приложения
+bin/             CLI-скрипты для проверки БД и запуска миграций
+config/          Конфигурация языков
+content/books/   Файлы книги и её манифест
+includes/        PHP-шаблоны страниц и компонентов
+locales/         Переводы и данные виджетов на ru/en
+migrations/      SQL-миграции базы данных
+public_html/     Публичная точка входа, ресурсы и скрипты выдачи файлов
+src/
+  Application/   Сервисы приложения
+  Domain/        Доменные интерфейсы, сущности и виджеты
+  Http/          Роутер, обработчик запросов и контроллеры
+  Infrastructure/ Реализации хранилищ, БД, безопасность и контейнер
+  Services/      Общие сервисы
+  View/          Объекты данных для шаблонов
+storage/         Загружаемые файлы и локальные данные
+tests/           Тесты PHPUnit
 ```
 
-## ⚙️ Установка и запуск
+## Установка
 
-### 1. Клонирование и зависимости
+1. Установите зависимости:
+
+   ```bash
+   composer install
+   ```
+
+2. Подготовьте файл окружения:
+
+   - Для локального окружения создайте `.env.local` в корне проекта.
+   - Для production-среды загрузчик ожидает `config/.env.production`.
+
+   Минимально необходима переменная `APP_DEBUG`. Пример локального файла для работы с MySQL:
+
+   ```dotenv
+   APP_DEBUG=true
+   STORAGE_DRIVER=database
+
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_NAME=project_humanity
+   DB_USER=project_user
+   DB_PASS=change_me
+
+   SITE_VERSION=1.0
+   ```
+
+   Для режима JSON задайте `STORAGE_DRIVER=json`. Даже при JSON-хранилище переменная `APP_DEBUG` должна быть определена.
+
+3. Проверьте `config/languages.json` и настройки базы в конфигурации. Файл `config/.settings.config` при отсутствии использует значения по умолчанию; в том числе настройку активности БД можно задать ключом `db_is_active=true` или `db_is_active=false`.
+
+4. Убедитесь, что веб-сервер обслуживает каталог `public_html`. Каталоги с исходным кодом, конфигурацией и `storage` не должны быть доступны напрямую из интернета.
+
+5. Предоставьте PHP-процессу права на запись в `storage/avatars` и `storage/books`. Для локального хранилища пользователей также требуется возможность создавать `storage/users.json`.
+
+> Не публикуйте файлы окружения и пароли от БД в репозитории.
+
+## База данных и миграции
+
+Миграции находятся в `migrations/`. Они запускаются в лексикографическом порядке имён файлов. Перед запуском убедитесь, что база и пользователь MySQL созданы и имеют необходимые права.
+
+Проверка статуса подключения:
 
 ```bash
-git clone <repo-url> projecthumanity.space
-cd projecthumanity.space
-composer install
+php bin/check_db_status.php
 ```
 
-### 2. Конфигурация
-
-Создай `.env.local` (для локальной разработки) или отредактируй `config/.env.production`:
-
-```env
-APP_DEBUG=true
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=projecthumanity
-DB_USER=root
-DB_PASS=secret
-
-LOCALES_MAIN_PATH=./locales/main
-LOCALES_ABOUT_PATH=./locales/about
-LOCALES_EVENTS_PATH=./locales/events
-LOCALES_NEWS_PATH=./locales/news
-LOCALES_PRINCIPLES_PATH=./locales/principles
-LOCALES_TIMELINE_PATH=./locales/timeline
-LOCALES_SOCIAL_PATH=./locales/social
-LOCALES_TELEGRAM_PATH=./locales/telegram
-
-STORAGE_DRIVER=json
-SITE_VERSION=1.0
-```
-
-### 3. Настройка БД
+Применение миграций:
 
 ```bash
-# Создать базу данных
-mysql -u root -p -e "CREATE DATABASE projecthumanity CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-# Применить миграции
-php run_migrations.php
+php bin/run_migrations.php
 ```
 
-### 4. Проверка окружения
+Скрипт миграций подключается к БД через контейнер приложения и создаёт таблицу `migrations` для учёта применённых файлов.
+
+Для части сайта можно использовать JSON-хранилище. Однако репозиторий «Живой Книги» в текущей конфигурации создаётся на базе MySQL и требует настроенной БД и применённых миграций.
+
+## Запуск локально
+
+Для быстрой проверки через встроенный PHP-сервер:
 
 ```bash
-php check_db_status.php
+php -S 127.0.0.1:8000 -t public_html
 ```
 
-### 5. Запуск локально
+Откройте в браузере `http://127.0.0.1:8000`. Для полноценного запуска настройте веб-сервер так, чтобы корнем сайта был `public_html`.
+
+## Маршруты
+
+Все страницы обслуживаются через `public_html/index.php`; маршрут выбирается параметром `page`.
+
+| URL-параметр | Страница |
+|---|---|
+| `?lang=ru` или `?lang=en` | Главная |
+| `?page=about&lang=ru` | О проекте |
+| `?page=principles&lang=ru` | Принципы |
+| `?page=books&lang=ru` | Каталог книги |
+| `?page=books&action=read&lang=ru` | Чтение книги |
+| `?page=living_book&lang=ru` | «Живая Книга» |
+| `?page=auth&action=login&lang=ru` | Вход |
+| `?page=auth&action=register&lang=ru` | Регистрация |
+| `?page=auth&action=profile&lang=ru` | Профиль |
+
+Дополнительные действия «Живой Книги» включают создание отклика, получение данных графа (`action=graph-data`) и данных книги (`action=book-details&book_id=...`). Для создания отклика требуется авторизация.
+
+## Контент и локализация
+
+Переводы и данные сайта находятся в `locales/`, обычно в отдельных JSON-файлах для `ru` и `en`. Для событий, новостей и виджетов также используются файлы конфигурации вида `*.config.json`.
+
+Доступные языки задаются через `config/languages.json`. Роутер использует только языки из этой конфигурации.
+
+Данные книги для онлайн-чтения размещаются в `content/books/project-humanity/`. Контроллер ожидает `book.json`, а также файлы глав и, опционально, `toc.md`. Пути к главам задаются в манифесте относительно каталога книги.
+
+## Тесты
+
+Запуск PHPUnit:
 
 ```bash
-php -S localhost:8000
+vendor/bin/phpunit
 ```
 
-Или настрой виртуальный хост Apache с `DocumentRoot` на корень проекта.
+Конфигурация PHPUnit находится в `phpunit.xml.dist`.
 
-## 🗄 База данных
+## Безопасность и эксплуатация
 
-### Таблицы (создаются миграциями)
-
-- **`migrations`** — журнал применённых миграций
-- **`users`** — пользователи (id, username, email, password_hash, role, is_active, timestamps)
-- **`login_attempts`** — попытки входа (для брутфорс-защиты)
-- **`sessions`** — пользовательские сессии
-
-### Переключение драйвера хранилища
-
-В `config/.settings.config` или через `STORAGE_DRIVER` в `.env`:
-
-```ini
-; config/.settings.config
-DB_IS_ACTIVE=true
-```
-
-```env
-# .env
-STORAGE_DRIVER=database   # или 'json'
-```
-
-## 🚦 Текущий статус работ
-
-### ✅ Готово
-
-- [x] Базовая архитектура (DI, роутер, слои)
-- [x] JSON-хранилище для всего контента
-- [x] Система локализации (RU/EN)
-- [x] Авторизация пользователей (регистрация, вход, выход, профиль)
-- [x] Капча на базе GD
-- [x] Защита от брутфорса (5 попыток / 15 минут)
-- [x] Сайдбары с виджетами (события, новости, таймлайн, соцсети, Telegram)
-- [x] Миграции БД (таблицы `users`, `sessions`, `login_attempts`)
-- [x] HTTP-заголовки безопасности (CSP, X-Frame-Options, Referrer-Policy)
-- [x] Красивая страница ошибки с debug-режимом
-
-### 🚧 В процессе
-
-- [ ] **Database-репозитории** — классы созданы, но методы бросают `Exception('not implemented')`:
-  - `DatabaseContentRepository`
-  - `DatabaseEventsRepository`
-  - `DatabaseNewsRepository`
-  - `DatabaseTimelineRepository`
-  - `DatabaseSocialRepository`
-  - `DatabaseTelegramRepository`
-- [ ] Миграции для таблиц контента (events, news, timeline, social, telegram)
-- [ ] Тестирование переключения `STORAGE_DRIVER=database` в боевом режиме
-
-### 📋 Планы
-
-- [ ] CSRF-защита форм (токены в сессии)
-- [ ] Админ-панель для управления контентом
-- [ ] Кэширование часто запрашиваемых данных
-- [ ] Покрытие тестами критичных сервисов
-- [ ] Рефакторинг `ContentManager::getAllNews()` — вынести сортировку на уровень БД
-
-## 🔐 Безопасность
-
-- Пароли хранятся через `password_hash()` (bcrypt)
-- Сессии: `httponly`, `samesite=Strict`, регенерация ID при старте
-- Вывод экранируется через `htmlspecialchars()` везде, кроме разрешённых HTML-тегов
-- `sanitizeHtml()` валидирует `href` у ссылок (только относительные + доверенные домены)
-- Капча живёт 10 минут, уничтожается после использования
-
-**Известные уязвимости, которые нужно закрыть:**
-- ⚠️ Отсутствует CSRF-защита в формах логина/регистрации
-- ⚠️ Logout через GET — уязвим к CSRF-атакам
-
-## 🧪 CLI-скрипты
-
-| Скрипт | Назначение |
-|--------|-----------|
-| `php run_migrations.php` | Применение новых миграций БД |
-| `php check_db_status.php` | Диагностика подключения к БД |
-
-## 👤 Автор
-
-Игорь, Москва. Ядерный физик по образованию, программист по призванию, фантаст по убеждению.
-
-Проект делается в свободное время, на чистом энтузиазме и при поддержке семьи.
-
-## 📄 Лицензия
-
-Пока никак не помечена. Если проект когда-нибудь вырастет — стоит выбрать.
-
+- В production установите `APP_DEBUG=false`.
+- Используйте HTTPS и отдельного пользователя MySQL с минимально необходимыми правами.
+- Загружаемые изображения проверяются по MIME-типу и сохраняются вне публичного каталога; выдача выполняется через отдельные скрипты.
+- Не размещайте пользовательские загрузки и секреты в публично доступной директории.
+- Ошибки приложения записываются в журнал сервера; подробности показывайте только в локальном режиме отладки.
