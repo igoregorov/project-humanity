@@ -1,20 +1,25 @@
 <?php
-
 declare(strict_types=1);
 
 namespace App\View;
 
+use App\Domain\Books\BookChapter;
+use App\Domain\Books\BookSummary;
+
 final class BooksData implements TemplateDataInterface
 {
     /**
-     * @param array<int, array{title: string, content: string}> $chapters
+     * @param BookChapter[] $chapters
+     * @param BookSummary[] $books
      */
     public function __construct(
-        public readonly string $lang_code,
-        public readonly bool $reader = false,
-        public readonly string $title = 'Проект Человечество: реальная утопия',
-        public readonly string $toc = '',
-        public readonly array $chapters = []
+        public string $lang_code,
+        public bool $reader = false,
+        public string $title = '',
+        public string $toc = '',
+        public array $chapters = [],
+        public array $books = [],
+        public string $message = '',
     ) {
     }
 }

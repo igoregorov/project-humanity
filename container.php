@@ -8,6 +8,7 @@ use App\Application\LocalizedContentService;
 use App\Application\EventsService;
 use App\Application\NewsService;
 use App\Http\Controllers\BooksController;
+use App\Infrastructure\Books\FileBookRepository;
 use App\Infrastructure\RepositoryFactory;
 use App\Infrastructure\SimpleContainer;
 use App\Services\LanguageService;
@@ -276,6 +277,13 @@ $container->singleton('living_book_service', static function ($c): LivingBookSer
 
 $container->singleton(LivingBookController::class, static function ($c): LivingBookController {
     return new LivingBookController($c);
+});
+
+$container->singleton('catalog_book_repository', static function () {
+    return new FileBookRepository(
+        BOOKS_DIR,
+        __DIR__ . '/config/books.php'
+    );
 });
 
 return $container;
