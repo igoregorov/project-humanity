@@ -1,0 +1,299 @@
+/* styles/books.css — список книг и ридер (Вариант B: раскладка только CSS) */
+
+/* === Контейнер страницы книг === */
+.books-page {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.books-page > h1 {
+    margin: 0 0 1.5rem;
+    font-size: 2rem;
+}
+
+/* === Карточка книги: grid-хак ===
+   Обложка — левая колонка на все строки.
+   Всё остальное — правая колонка стопкой. */
+.book-card {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    column-gap: 1.25rem;
+    row-gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.book-card:last-child {
+    margin-bottom: 0;
+}
+
+.book-card:hover {
+    border-color: rgba(76, 201, 240, 0.45);
+    background: rgba(76, 201, 240, 0.04);
+}
+
+/* Обложка — левая колонка, на всю высоту карточки, прижата вверх */
+.book-card > .book-cover {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    align-self: start;
+    width: 110px;
+    height: 160px;
+    object-fit: cover;
+}
+
+/* Все прочие элементы карточки — правая колонка */
+.book-card > *:not(.book-cover) {
+    grid-column: 2;
+    min-width: 0;            /* чтобы длинные слова не растягивали колонку */
+    overflow-wrap: anywhere;
+}
+
+/* Fallback: если обложки нет — одна колонка, дети в неё.
+   ВАЖНО: это правило должно идти ПОСЛЕ "*.book-cover { grid-column: 2 }",
+   иначе при равной специфичности победит не он. */
+.book-card:not(:has(.book-cover)) {
+    grid-template-columns: 1fr;
+}
+
+.book-card:not(:has(.book-cover)) > * {
+    grid-column: 1;
+}
+
+/* === Типографика карточки === */
+.book-card h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    line-height: 1.3;
+    color: var(--accent);
+}
+
+.book-author {
+    margin: 0;
+    font-size: 0.9rem;
+    opacity: 0.75;
+}
+
+.book-description {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    opacity: 0.9;
+}
+
+.book-updated {
+    margin: 0;
+    font-size: 0.8rem;
+    opacity: 0.55;
+}
+
+/* === Кнопки карточки === */
+.book-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.25rem;
+}
+
+/* Переопределяем width:100% и margin-top из auth.css */
+.book-actions .btn-primary,
+.book-actions .btn-secondary {
+    width: auto;
+    margin-top: 0;
+    padding: 0.55rem 1.1rem;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* === Общие свойства обложки (без размеров — размеры в скоупах ниже) === */
+.book-cover {
+    display: block;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: rgba(76, 201, 240, 0.05);
+}
+
+/* === Ридер === */
+.book-reader {
+    max-width: 72ch;
+    margin: 0 auto;
+}
+
+.book-reader > h1 {
+    margin: 0 0 0.5rem;
+    font-size: 2rem;
+}
+
+/* Обложка в ридере — block сверху, крупнее */
+.book-reader .book-cover {
+    width: 180px;
+    height: 260px;
+    object-fit: cover;
+    margin: 0 0 1.25rem;
+}
+
+.book-reader .book-author {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    opacity: 0.8;
+}
+
+.book-reader .book-description {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    line-height: 1.6;
+    opacity: 0.9;
+}
+
+.book-reader .book-updated {
+    margin: 0 0 1.25rem;
+    font-size: 0.85rem;
+    opacity: 0.55;
+}
+
+.book-reader .book-actions {
+    margin: 0 0 1.5rem;
+}
+
+/* === Оглавление === */
+.book-toc {
+    margin: 0 0 2rem;
+    padding: 1.25rem 1.5rem;
+    background: rgba(76, 201, 240, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.book-toc h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.2rem;
+    color: var(--accent);
+}
+
+.book-toc ol,
+.book-toc ul {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.book-toc li {
+    margin-bottom: 0.35rem;
+    line-height: 1.5;
+}
+
+.book-toc a {
+    color: var(--text);
+    text-decoration: none;
+    border-bottom: 1px dotted rgba(76, 201, 240, 0.35);
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.book-toc a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* === Главы === */
+.book-chapter {
+    margin: 0 0 2.5rem;
+    padding-top: 0.5rem;
+}
+
+.book-chapter h2 {
+    margin: 0 0 1rem;
+    font-size: 1.5rem;
+    color: var(--accent);
+    line-height: 1.35;
+}
+
+.book-chapter p {
+    margin: 0 0 1rem;
+    line-height: 1.75;
+}
+
+.book-chapter ul,
+.book-chapter ol {
+    margin: 0 0 1rem;
+    padding-left: 1.75rem;
+}
+
+.book-chapter li {
+    margin-bottom: 0.35rem;
+    line-height: 1.65;
+}
+
+.book-chapter blockquote {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1.25rem;
+    border-left: 3px solid var(--accent);
+    background: rgba(76, 201, 240, 0.05);
+}
+
+.book-chapter pre {
+    margin: 0 0 1rem;
+    padding: 1rem;
+    overflow-x: auto;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+.book-chapter code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.95em;
+}
+
+.book-chapter img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.book-chapter hr {
+    margin: 2rem 0;
+    border: none;
+    border-top: 1px solid var(--border);
+}
+
+/* === Мобильные === */
+@media (max-width: 600px) {
+    .books-page > h1 {
+        font-size: 1.6rem;
+    }
+
+    /* Карточка в один столбец: обложка сверху по центру */
+    .book-card,
+    .book-card:not(:has(.book-cover)) {
+        grid-template-columns: 1fr;
+    }
+
+    .book-card > .book-cover,
+    .book-card > *:not(.book-cover),
+    .book-card:not(:has(.book-cover)) > * {
+        grid-column: 1;
+    }
+
+    .book-card > .book-cover {
+        grid-row: auto;
+        justify-self: center;
+        width: 100%;
+        max-width: 180px;
+        height: auto;
+        aspect-ratio: 2 / 3;
+    }
+
+    .book-reader .book-cover {
+        width: 140px;
+        height: 200px;
+    }
+
+    .book-actions .btn-primary,
+    .book-actions .btn-secondary {
+        flex: 1 1 auto;
+        text-align: center;
+    }
+}

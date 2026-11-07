@@ -39,6 +39,11 @@ final class BooksController extends AbstractController
                 title: $reader->title,
                 toc: $reader->tocHtml,
                 chapters: $reader->chapters,
+                author: $reader->author,
+                description: $reader->description,
+                coverUrl: $reader->coverUrl,
+                updatedAt: $reader->updatedAt,
+                formats: $reader->formats,
             );
 
             return $this->renderPage('page_books.php', $data, $page, $lang);

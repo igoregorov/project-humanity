@@ -105,6 +105,7 @@ final class FileBookRepository implements BookRepositoryInterface
 
         $chapters = [];
         $chapterIdsByPath = [];
+        $usedIds = [];
         $chapterNumber = 0;
 
         foreach ($chaptersConfig as $chapter) {
@@ -134,7 +135,25 @@ final class FileBookRepository implements BookRepositoryInterface
                 continue;
             }
 
-            $id = 'chapter-' . (++$chapterNumber);
+            $rawId = isset($chapter['id']) && is_string($chapter['id'])
+                ? trim($chapter['id'])
+                : '';
+
+            if (
+                $rawId !== ''
+                && preg_match('/^[a-z0-9_-]{1,64}$/i', $rawId) === 1
+                && !isset($usedIds[$rawId])
+            ) {
+                $id = $rawId;
+            } else {
+                $id = 'chapter-' . (++$chapterNumber);
+
+                while (isset($usedIds[$id])) {
+                    $id = 'chapter-' . (++$chapterNumber);
+                }
+            }
+
+            $usedIds[$id] = true;
             $chapterIdsByPath[$relativePath] = $id;
 
             $markdown = (string) file_get_contents($realPath);

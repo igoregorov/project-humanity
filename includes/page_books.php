@@ -85,7 +85,50 @@ $lang = $escape($data->lang_code);
 
     <?php else: ?>
         <article class="book-reader">
+            <?php if ($data->coverUrl !== null && $data->coverUrl !== ''): ?>
+                <img
+                        class="book-cover"
+                        src="<?= $escape($data->coverUrl) ?>"
+                        alt="Обложка книги: <?= $escape($data->title) ?>"
+                >
+            <?php endif; ?>
+
             <h1><?= $escape($data->title) ?></h1>
+
+            <?php if ($data->author !== ''): ?>
+                <p class="book-author">
+                    <?= $escape($data->author) ?>
+                </p>
+            <?php endif; ?>
+
+            <?php if ($data->description !== ''): ?>
+                <p class="book-description">
+                    <?= $escape($data->description) ?>
+                </p>
+            <?php endif; ?>
+
+            <?php if ($data->updatedAt !== null && $data->updatedAt !== ''): ?>
+                <p class="book-updated">
+                    <small>
+                        Обновлено: <?= $escape($data->updatedAt) ?>
+                    </small>
+                </p>
+            <?php endif; ?>
+
+            <?php if ($data->formats !== []): ?>
+                <div class="book-actions">
+                    <?php /** @var BookFormat $format */ ?>
+                    <?php foreach ($data->formats as $format): ?>
+                        <a
+                                class="btn-secondary"
+                                href="<?= $escape($format->url) ?>"
+                                download
+                        >
+                            Скачать <?= $escape($format->label) ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
 
             <p>
                 <a class="btn-secondary" href="?page=books&amp;lang=<?= $lang ?>">
