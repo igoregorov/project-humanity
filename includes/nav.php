@@ -47,6 +47,12 @@ $csrfToken = $data->csrf_token;
                 )
         ) ?>
     </a>
+    <a
+            href="?page=books&amp;lang=<?= $escape($data->current_lang) ?>"
+            <?= $data->current_page === 'books' ? 'class="active"' : '' ?>
+    >
+        Книги
+    </a>
 
     <?php if ($isLoggedIn): ?>
         <a

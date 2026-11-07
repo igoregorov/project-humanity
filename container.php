@@ -7,6 +7,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 use App\Application\LocalizedContentService;
 use App\Application\EventsService;
 use App\Application\NewsService;
+use App\Http\Controllers\BooksController;
 use App\Infrastructure\RepositoryFactory;
 use App\Infrastructure\SimpleContainer;
 use App\Services\LanguageService;
@@ -136,6 +137,9 @@ $container->singleton(App\Http\Controllers\HomeController::class, function ($c) 
 $container->singleton(App\Http\Controllers\PrinciplesController::class, function ($c) {
     return new App\Http\Controllers\PrinciplesController($c);
 });
+$container->singleton(BooksController::class, function ($c) {
+    return new BooksController($c);
+});
 
 // Сервис для определения языка запроса
 $container->set('request_lang', $_GET['lang'] ?? 'ru');
@@ -150,6 +154,7 @@ $container->singleton('router', function ($c) {
     $router->addRoute('principles', App\Http\Controllers\PrinciplesController::class);
     $router->addRoute('living_book', LivingBookController::class);
     $router->addRoute('auth', App\Http\Controllers\AuthController::class);
+    $router->addRoute('books', App\Http\Controllers\BooksController::class);
     // Пример добавления новой страницы:
     // $router->addRoute('contacts', App\Http\Controllers\ContactsController::class);
 
