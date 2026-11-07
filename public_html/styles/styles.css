@@ -6,6 +6,7 @@
 @import './navigation.css';
 @import './auth.css';
 @import './living-book.css';
+@import './books.css';
 
 /* Стили сайдбаров */
 @import 'sidebar/sidebar.css';

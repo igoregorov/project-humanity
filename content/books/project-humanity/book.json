@@ -1,9 +1,12 @@
 {
   "id": "project-humanity",
   "title": "Проект Человечество: реальная утопия",
+  "description": "Книга о переходе человечества к сознательному развитию, солидарности и космической миссии.",
   "author": "Игорь Егоров",
   "language": "ru",
   "format": "markdown",
+  "updated_at": "2026-11-07",
+  "cover_url": "/images/covers/project-humanity.jpg",
   "chapters": [
     {
       "id": "preface",
