@@ -1,23 +1,134 @@
 {
   "id": "project-humanity",
   "title": "Проект Человечество: реальная утопия",
+  "author": "Игорь Егоров",
   "language": "ru",
   "format": "markdown",
   "chapters": [
     {
+      "id": "preface",
+      "file": "Preface.md",
+      "title": "От автора. Предисловие"
+    },
+    {
+      "id": "introduction",
+      "file": "Part_I_Vision/Chapter_0_Introduction.md",
+      "title": "Введение"
+    },
+    {
       "id": "chapter-1",
-      "file": "chapters/01.md",
-      "title": "Мир, который можно построить"
+      "file": "Part_I_Vision/Chapter_1_The_Ideal_World.md",
+      "title": "Глава 1. Идеальный мир"
     },
     {
       "id": "chapter-2",
-      "file": "chapters/02.md",
-      "title": "От конкуренции к сотрудничеству"
+      "file": "Part_I_Vision/Chapter_2_The_impossible_fun.md",
+      "title": "Глава 2. Кто сказал, что «нельзя»"
+    },
+    {
+      "id": "interlude-0",
+      "file": "Part_I_Vision/1a.Interlude-0.md",
+      "title": "Интерлюдия. Переходя к главному"
     },
     {
       "id": "chapter-3",
-      "file": "chapters/03.md",
-      "title": "Институты доверия"
+      "file": "Part_II_Anatomy_of_Decline/Chapter_3_Loneliness_as_Norm.md",
+      "title": "Глава 3. Культура одиночества"
+    },
+    {
+      "id": "chapter-4",
+      "file": "Part_II_Anatomy_of_Decline/Chapter_4_Education_of_the_Consumer.md",
+      "title": "Глава 4. Воспитание потребителя. Как среда учит выбирать, а не жить"
+    },
+    {
+      "id": "chapter-5",
+      "file": "Part_II_Anatomy_of_Decline/Chapter_5_Science_in_Bondage_to_Profit.md",
+      "title": "Глава 5. Наука в плену прибыли"
+    },
+    {
+      "id": "chapter-6",
+      "file": "Part_II_Anatomy_of_Decline/Chapter_6_Property_as_Alienation.md",
+      "title": "Глава 6. Собственность как иллюзия"
+    },
+    {
+      "id": "chapter-7",
+      "file": "Part_II_Anatomy_of_Decline/Chapter_7_Critique_of_Religion.md",
+      "title": "Глава 7. Критика религии. В начале было Слово"
+    },
+    {
+      "id": "chapter-8",
+      "file": "Part_II_Anatomy_of_Decline/Chapter_8_Art_as_Prediction_of_the_Future.md",
+      "title": "Глава 8. Искусство — предчувствие будущего"
+    },
+    {
+      "id": "interlude-1",
+      "file": "Part_II_Anatomy_of_Decline/2a.Interlude-1.md",
+      "title": "Интерлюдия. Золотой телец: Анатомия одной гегемонии"
+    },
+    {
+      "id": "chapter-9",
+      "file": "Part_III_Counterstrike/Chapter_09_Failures_of_the_Past.md",
+      "title": "Глава 9. Провалы прошлого"
+    },
+    {
+      "id": "chapter-10",
+      "file": "Part_III_Counterstrike/Chapter_10_Philosophy_Without_a_Face.md",
+      "title": "Глава 10. Философия без лица"
+    },
+    {
+      "id": "chapter-11",
+      "file": "Part_III_Counterstrike/Chapter_11_Mathematics_of_Solidarity.md",
+      "title": "Глава 11. Математика солидарности. Теория игр как аргумент за общее благо"
+    },
+    {
+      "id": "interlude-2",
+      "file": "Part_III_Counterstrike/3a.Interlude-2.md",
+      "title": "Интерлюдия. Точка перегиба"
+    },
+    {
+      "id": "chapter-12",
+      "file": "Part_IV_New_Hope/Chapter_12_Cosmic_Mission.md",
+      "title": "Глава 12. Космическая миссия"
+    },
+    {
+      "id": "chapter-13",
+      "file": "Part_IV_New_Hope/Chapter_13_Project_Humanity.md",
+      "title": "Глава 13. Проект Человечество"
+    },
+    {
+      "id": "chapter-14",
+      "file": "Part_IV_New_Hope/Chapter_14_Why_Not.md",
+      "title": "Глава 14. Отличие Проекта от прошлых утопий"
+    },
+    {
+      "id": "chapter-15",
+      "file": "Part_IV_New_Hope/Chapter_15_New_Start.md",
+      "title": "Глава 15. Как начать"
+    },
+    {
+      "id": "chapter-16",
+      "file": "Part_IV_New_Hope/Chapter_16_Critic_Project.md",
+      "title": "Глава 16. Критика Проекта"
+    },
+    {
+      "id": "conclusion",
+      "file": "Part_IV_New_Hope/Chapter_17_Conclusion.md",
+      "title": "Заключение. От диагноза к проекту"
+    },
+    {
+      "id": "bibliography",
+      "file": "Part_IV_New_Hope/Chapter_18_Biblio.md",
+      "title": "Список литературы"
+    },
+    {
+      "id": "living-book",
+      "file": "Part_IV_New_Hope/Chapter_19.md",
+      "title": "Эксперимент «Живая книга»"
+    },
+    {
+      "id": "reader-pages",
+      "file": "Part_IV_New_Hope/Chapter_20.md",
+      "title": "Страницы для читателя"
     }
   ]
 }

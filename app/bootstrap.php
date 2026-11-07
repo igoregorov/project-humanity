@@ -6,17 +6,32 @@ use function App\Http\sendCleanErrorPage;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+/**
+ * Корень проекта — каталог, содержащий app/, src/, content/ и composer.json.
+ */
+if (!defined('PROJECT_ROOT')) {
+    define('PROJECT_ROOT', dirname(__DIR__));
+}
+
+if (!defined('CONTENT_DIR')) {
+    define('CONTENT_DIR', PROJECT_ROOT . '/content');
+}
+
+if (!defined('BOOKS_DIR')) {
+    define('BOOKS_DIR', CONTENT_DIR . '/books');
+}
+
 if (PHP_SAPI !== 'cli') {
     ini_set('display_errors', '0'); // Всегда 0 в продакшене
     ini_set('log_errors', '1');
 
     // Заголовки безопасности
-    header("Content-Type: text/html; charset=UTF-8");
-    header("X-Content-Type-Options: nosniff");
-    header("X-Frame-Options: DENY");
-    header("X-XSS-Protection: 1; mode=block");
+    header('Content-Type: text/html; charset=UTF-8');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');
+    header('X-XSS-Protection: 1; mode=block');
     header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';");
-    header("Referrer-Policy: strict-origin-when-cross-origin");
+    header('Referrer-Policy: strict-origin-when-cross-origin');
 }
 
 // --- Инициализация сессии ---
@@ -24,7 +39,7 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
     $isHttps = (
         (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
         || (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443
-        || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https')
+        || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
     );
 
     session_set_cookie_params([
@@ -39,21 +54,26 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-set_error_handler(/**
+set_error_handler(
+/**
  * @throws ErrorException
- */ function ($severity, $message, $file, $line) {
-    error_log("PHP Error caught by set_error_handler: $severity - $message in $file:$line");
-    if (!(error_reporting() & $severity)) {
-        return false;
+ */
+    function ($severity, $message, $file, $line) {
+        error_log("PHP Error caught by set_error_handler: $severity - $message in $file:$line");
+
+        if (!(error_reporting() & $severity)) {
+            return false;
+        }
+
+        throw new ErrorException($message, 0, $severity, $file, $line);
     }
-    throw new ErrorException($message, 0, $severity, $file, $line);
-});
+);
 
 set_exception_handler(function (Throwable $e) {
     error_log(
-        "Uncaught Exception: " . $e->getMessage() .
-        " in " . $e->getFile() . ":" . $e->getLine() .
-        PHP_EOL . $e->getTraceAsString()
+        'Uncaught Exception: ' . $e->getMessage()
+        . ' in ' . $e->getFile() . ':' . $e->getLine()
+        . PHP_EOL . $e->getTraceAsString()
     );
 
     sendCleanErrorPage(
@@ -65,7 +85,7 @@ set_exception_handler(function (Throwable $e) {
     );
 });
 
-$container = require_once __DIR__ . '/../container.php';
+$container = require_once PROJECT_ROOT . '/container.php';
 
 if (!isset($container)) {
     throw new RuntimeException('Application configuration error: Container is not set.');

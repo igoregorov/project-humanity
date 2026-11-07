@@ -18,7 +18,8 @@
         "ext-pdo_mysql": "*",
         "ext-mbstring": "*",
         "ext-fileinfo": "*",
-        "ext-dom": "*"
+        "ext-dom": "*",
+        "league/commonmark": "^2.10"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

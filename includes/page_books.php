@@ -49,14 +49,17 @@ $lang = $escape($data->lang_code);
             <?php if ($data->toc !== ''): ?>
                 <section class="book-toc">
                     <h2>Оглавление</h2>
-                    <pre><?= $escape($data->toc) ?></pre>
+                    <?= $data->toc ?>
                 </section>
             <?php endif; ?>
 
             <?php foreach ($data->chapters as $chapter): ?>
-                <section class="book-chapter">
+                <section
+                        class="book-chapter"
+                        id="<?= $escape($chapter['id']) ?>"
+                >
                     <h2><?= $escape($chapter['title']) ?></h2>
-                    <pre><?= $escape($chapter['content']) ?></pre>
+                    <?= $chapter['content'] ?>
                 </section>
             <?php endforeach; ?>
 
