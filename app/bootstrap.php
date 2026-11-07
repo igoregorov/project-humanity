@@ -22,6 +22,22 @@ if (!defined('BOOKS_DIR')) {
 }
 
 if (PHP_SAPI !== 'cli') {
+    // ==========================================================
+    // ЗАЩИТА ОТ REVERSE-PROXY КЛОНОВ (foodinnovation.ru и подобных)
+    // ==========================================================
+    $allowedHosts = ['projecthumanity.space', 'www.projecthumanity.space', 'localhost'];
+    $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+    // Отрезаем порт, если он указан (актуально для локальной разработки)
+    $hostWithoutPort = preg_replace('/:\d+$/', '', $currentHost);
+
+    if (!in_array($hostWithoutPort, $allowedHosts, true)) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Forbidden: Invalid Host';
+        exit(1);
+    }
+    // ==========================================================
+
     ini_set('display_errors', '0'); // Всегда 0 в продакшене
     ini_set('log_errors', '1');
 

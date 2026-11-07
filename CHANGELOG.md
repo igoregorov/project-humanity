@@ -32,6 +32,8 @@
 - Шаблон `includes/page_books.php` разделён на три режима: список книг, чтение книги, 404.
 - Стили каталога и ридера книг в `public_html/styles/books.css`: карточки с фиксированной обложкой, ограниченной шириной ридера `72ch`, оглавление в рамке, адаптив для мобильных.
 - Регистрация `catalog_book_repository` как singleton в контейнере (отдельно от `book_repository` «Живой Книги»).
+- Проверка разрешённых хостов (Host header validation) в `bootstrap.php` для защиты от reverse-proxy клонирования сайта.
+- Canonical URL теги в `layout.php` для указания оригинального домена `projecthumanity.space` и предотвращения SEO-паразитирования.
 
 ### Changed
 
@@ -61,6 +63,8 @@
 - `BooksData` расширен полями `books`, `author`, `description`, `coverUrl`, `updatedAt`, `formats`, `message` для поддержки списка, ридера и 404.
 - Переключатель языка в `includes/layout.php` сохраняет текущие query-параметры (включая `book` и `action`), а не сбрасывает их до `?page=<page>&lang=<lang>`.
 - `includes/layout.php` экранирует `$page`, `$lang_code`, `$site_title`, `$page_title`, `$description`, `$version` через `htmlspecialchars(..., ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')`.
+- `bootstrap.php` теперь блокирует запросы с неразрешёнными хостами на уровне PHP (403 Forbidden) с поддержкой whitelist доменов.
+- `layout.php` генерирует абсолютные canonical URL с принудительным использованием домена `projecthumanity.space` для борьбы с клонами в поисковых системах.
 
 ### Security
 
@@ -75,6 +79,7 @@
 - Защита от directory traversal при резолвинге папки книги и путей глав: `realpath()` + проверка `str_starts_with($resolved, $baseDir . DIRECTORY_SEPARATOR)`.
 - Нормализация публичных URL (обложки, форматы скачивания): допускаются только `/...` и `http(s)://...`; отклоняются `javascript:`, `data:`, protocol-relative `//`.
 - Markdown-конвертер CommonMark для глав и оглавления настроен с `html_input=strip` и `allow_unsafe_links=false`.
+- **Добавлена защита от клонирования сайта через reverse proxy** (foodinnovation.ru и подобные домены): реализована валидация HTTP_HOST с whitelist разрешённых доменов (`projecthumanity.space`, `www.projecthumanity.space`, `localhost`), запросы с другими хостами блокируются с кодом 403.
 
 ### Fixed
 
@@ -90,6 +95,7 @@
 - Добавлена явная ошибка, если `bin/run_migrations.php` отсутствует на сервере.
 - Якоря глав в оглавлении и в секциях `<section class="book-chapter">` теперь стабильны и не сдвигаются при добавлении/удалении/перестановке глав в середине книги.
 - Переключение языка на странице чтения книги больше не выбрасывает пользователя обратно в список.
+- Корректная обработка портов в проверке хостов: домен с портом (например, `localhost:8080`) корректно разрешается благодаря удалению порта перед проверкой.
 
 ### Removed
 

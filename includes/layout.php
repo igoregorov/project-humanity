@@ -35,6 +35,10 @@ $enHref = '?' . http_build_query(array_merge($queryParams, ['lang' => 'en']));
 
 $escapeAttr = static fn (string $value): string =>
 htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+// Формируем canonical URL. Принудительно используем основной домен для защиты от клонов в SEO.
+$requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+$canonicalUrl = 'https://projecthumanity.space' . $escapeAttr($requestUri);
 ?>
 <!DOCTYPE html>
 <html lang="<?= $escapeAttr($lang_code) ?>">
@@ -43,6 +47,7 @@ htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $escapeAttr($page_title) ?> — <?= $escapeAttr($site_title) ?></title>
     <meta name="description" content="<?= $escapeAttr($description) ?>">
+    <link rel="canonical" href="<?= $canonicalUrl ?>">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="/styles/styles.css">
     <link rel="stylesheet" href="/styles/living-book-graph.css">
