@@ -83,7 +83,7 @@ $canonicalUrl = 'https://projecthumanity.space' . $escapeAttr($requestUri);
     </div>
     <?= $footerHtml ?>
 </div>
-<script src="/vendor/vis-network/vis-network.min.js" defer></script>
+<script src="/scripts/vis-network.min.js" defer></script>
 <script src="/scripts/living-book-graph.js" defer></script>
 <script src="/scripts/avatar.js" defer></script>
 </body>
