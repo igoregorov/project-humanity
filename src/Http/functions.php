@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http;
 
-use JetBrains\PhpStorm\NoReturn;
-
-#[NoReturn]
 function sendCleanErrorPage(
     string $message = '',
     ?string $file = null,
@@ -14,7 +11,7 @@ function sendCleanErrorPage(
     ?string $trace = null,
     bool $debugMode = false,
     int $statusCode = 500
-): void {
+): never {
     if (ob_get_level()) {
         ob_clean();
     }
@@ -22,6 +19,26 @@ function sendCleanErrorPage(
     if (!headers_sent()) {
         http_response_code($statusCode);
         header('Content-Type: text/html; charset=utf-8');
+    }
+
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, "ERROR: {$message}\n");
+
+        if ($debugMode) {
+            if ($file !== null && $file !== '') {
+                fwrite(STDERR, "FILE: {$file}\n");
+            }
+
+            if ($line !== null && $line !== '') {
+                fwrite(STDERR, "LINE: {$line}\n");
+            }
+
+            if ($trace !== null && $trace !== '') {
+                fwrite(STDERR, "TRACE:\n{$trace}\n");
+            }
+        }
+
+        exit(1);
     }
 
     $pageTitle = htmlspecialchars(

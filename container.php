@@ -143,7 +143,7 @@ $container->singleton(BooksController::class, function ($c) {
 });
 
 // Сервис для определения языка запроса
-$container->set('request_lang', $_GET['lang'] ?? 'ru');
+$container->set('request_lang', 'ru');
 
 // Регистрация роутера ---
 $container->singleton('router', function ($c) {
