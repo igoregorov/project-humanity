@@ -25,7 +25,7 @@ if (PHP_SAPI !== 'cli') {
     // ==========================================================
     // ЗАЩИТА ОТ REVERSE-PROXY КЛОНОВ (foodinnovation.ru и подобных)
     // ==========================================================
-    $allowedHosts = ['projecthumanity.space', 'www.projecthumanity.space', 'localhost'];
+    $allowedHosts = ['projecthumanity.space', 'www.projecthumanity.space'];
     $currentHost = $_SERVER['HTTP_HOST'] ?? '';
     // Отрезаем порт, если он указан (актуально для локальной разработки)
     $hostWithoutPort = preg_replace('/:\d+$/', '', $currentHost);
@@ -45,7 +45,6 @@ if (PHP_SAPI !== 'cli') {
     header('Content-Type: text/html; charset=UTF-8');
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: DENY');
-    header('X-XSS-Protection: 1; mode=block');
     header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';");
     header('Referrer-Policy: strict-origin-when-cross-origin');
 }
