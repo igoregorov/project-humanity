@@ -5,6 +5,10 @@ on:
   push:
     branches: [ master ]
 
+concurrency:
+  group: deploy-project-humanity
+  cancel-in-progress: false
+
 jobs:
   validate-and-deploy:
     runs-on: ubuntu-latest
@@ -16,29 +20,26 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
-          extensions: gd, pdo_mysql, mbstring, fileinfo, openssl
+          php-version: '8.5.12'
+          extensions: gd, dom, fileinfo, mbstring, openssl, pdo, pdo_mysql, session, zip
           tools: composer:v2
+          coverage: none
+          ini-values: memory_limit=512M
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@v3
-        with:
-          path: vendor
-          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-composer-
+      - name: Validate Composer files
+        run: composer validate --no-check-publish
 
       - name: Validate PHP Syntax
         run: |
-          find . -type f -name "*.php" -not -path "./vendor/*" -exec php -l {} \;
+          find . -type f -name "*.php" -not -path "./vendor/*" -print0 | xargs -0 -n1 php -l
 
       - name: Check Critical Files Exist
         run: |
-          test -f public_html/index.php || exit 1
-          test -f app/bootstrap.php || exit 1
-          test -f container.php || exit 1
-          test -f config.php || exit 1
-          test -d migrations || exit 1 # <-- ДОБАВЛЕНО: Проверка наличия папки миграций
+          test -f public_html/index.php
+          test -f app/bootstrap.php
+          test -f container.php
+          test -f config.php
+          test -d migrations
           echo "Critical structure verified."
 
       - name: Prepare SSH Key
@@ -47,10 +48,18 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
+
+      - name: Verify Server PHP 8.5
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" \
+            "php -r 'exit(PHP_VERSION_ID >= 80512 ? 0 : 1);'"
 
       - name: Real Deploy via Rsync
         env:
@@ -64,6 +73,11 @@ jobs:
             --exclude='.gitignore' \
             --exclude='/vendor/' \
             --exclude='/node_modules/' \
+            --exclude='/tests/' \
+            --exclude='phpunit.xml.dist' \
+            --exclude='.phpunit.cache/' \
+            --exclude='migration_dump.txt' \
+            --exclude='all_php_merged.txt' \
             --exclude='.env*' \
             --exclude='config/.env*' \
             --exclude='config/.settings.config' \
@@ -77,7 +91,6 @@ jobs:
             --exclude='*.orig' \
             --exclude='*.save' \
             --exclude='*.swp' \
-            --exclude='all_php_merged.txt' \
             --exclude='README.md' \
             --exclude='CHANGELOG.md' \
             --exclude='LICENSE' \
@@ -93,14 +106,19 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=yes -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" \
             "DEPLOY_PATH='$DEPLOY_PATH' bash -s" << 'EOF'
-            set -e
+            set -euo pipefail
             cd "$DEPLOY_PATH"
+
+            echo "Server PHP:"
+            php -v
+
+            echo "Checking platform requirements..."
+            COMPOSER_ALLOW_SUPERUSER=1 composer check-platform-reqs --no-dev
 
             echo "Running composer install..."
             COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
             echo "Running migrations..."
-            # Проверяем, что файл существует перед запуском
             if [ -f "bin/run_migrations.php" ]; then
               php bin/run_migrations.php
             else
@@ -113,4 +131,13 @@ jobs:
 
       - name: Health Check
         run: |
-          curl -f -k https://projecthumanity.space/ || curl -f http://projecthumanity.space/
+          for i in 1 2 3 4 5; do
+            if curl -fsS -o /dev/null https://projecthumanity.space/; then
+              echo "Health check passed."
+              exit 0
+            fi
+            echo "Health check attempt $i failed, retrying..."
+            sleep 10
+          done
+          echo "Health check failed."
+          exit 1
