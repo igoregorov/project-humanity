@@ -48,7 +48,21 @@ class Router
 
         // Проверка разрешенного языка (можно вынести в отдельный сервис, если используется часто)
         $config = $this->container->get('config');
-        $allowedLanguages = $config['app']['allowed_languages'] ?? ['ru'];
+
+        $allowedLanguages = ['ru'];
+
+        if (is_array($config)) {
+            $appConfig = $config['app'] ?? [];
+
+            if (is_array($appConfig) && isset($appConfig['allowed_languages']) && is_array($appConfig['allowed_languages'])) {
+                $allowedLanguages = $appConfig['allowed_languages'];
+            }
+        }
+
+        if ($allowedLanguages === []) {
+            $allowedLanguages = ['ru'];
+        }
+
         if (!in_array($lang, $allowedLanguages, true)) {
             $lang = $allowedLanguages[0] ?? 'ru';
         }

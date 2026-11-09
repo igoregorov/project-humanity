@@ -71,11 +71,12 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
 }
 
 set_error_handler(
-/**
- * @throws ErrorException
- */
-    function ($severity, $message, $file, $line) {
+    function (int $severity, string $message, string $file, int $line): bool {
         error_log("PHP Error caught by set_error_handler: $severity - $message in $file:$line");
+
+        if ($severity === E_DEPRECATED || $severity === E_USER_DEPRECATED) {
+            return true;
+        }
 
         if (!(error_reporting() & $severity)) {
             return false;
@@ -85,7 +86,7 @@ set_error_handler(
     }
 );
 
-set_exception_handler(function (Throwable $e) {
+set_exception_handler(function (Throwable $e): void {
     error_log(
         'Uncaught Exception: ' . $e->getMessage()
         . ' in ' . $e->getFile() . ':' . $e->getLine()

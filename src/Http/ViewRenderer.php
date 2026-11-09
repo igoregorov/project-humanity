@@ -11,7 +11,7 @@ class ViewRenderer
 private string $includesPath;
 private string $layoutFile;
 
-public function __construct(string $includesPath = null, string $layoutFile = 'layout.php')
+    public function __construct(?string $includesPath = null, string $layoutFile = 'layout.php')
 {
 if ($includesPath === null) {
 $includesPath = dirname(__DIR__, 2) . '/includes/';

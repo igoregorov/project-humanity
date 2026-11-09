@@ -10,9 +10,9 @@ class SimpleContainer implements ContainerInterface
     private array $values = [];
     private array $factories = [];
 
-    public function get(string $id)
+    public function get(string $id): mixed
     {
-        if (isset($this->values[$id])) {
+        if (array_key_exists($id, $this->values)) {
             return $this->values[$id];
         }
 
@@ -27,10 +27,10 @@ class SimpleContainer implements ContainerInterface
 
     public function has(string $id): bool
     {
-        return isset($this->values[$id]) || isset($this->factories[$id]);
+        return array_key_exists($id, $this->values) || isset($this->factories[$id]);
     }
 
-    public function set(string $id, $value): ContainerInterface
+    public function set(string $id, mixed $value): ContainerInterface
     {
         $this->values[$id] = $value;
         return $this;
