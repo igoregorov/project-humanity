@@ -74,7 +74,7 @@ jobs:
             --exclude='/vendor/' \
             --exclude='/node_modules/' \
             --exclude='/tests/' \
-            --exclude='.well-known/'
+            --exclude='.well-known/' \
             --exclude='phpunit.xml.dist' \
             --exclude='.phpunit.cache/' \
             --exclude='migration_dump.txt' \
