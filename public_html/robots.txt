@@ -1,4 +1,4 @@
 User-agent: *
 Disallow: /hoster_block.html
 
-Sitemap: https://projecthumanity.space/sitemap.xml
+Sitemap: https://projecthumanity.space/?page=sitemap

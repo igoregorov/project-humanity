@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
 
-// src/Http/Controllers/AbstractController.php
-
 namespace App\Http\Controllers;
 
 use App\Infrastructure\ContainerInterface;
@@ -36,7 +34,10 @@ abstract class AbstractController implements ControllerInterface
         $leftSidebarContent = $preparedData['left_sidebar_content'];
         $rightSidebarContent = $preparedData['right_sidebar_content'];
 
-        // Рендерим компоненты и формируем layout data
+        // Формируем canonical и hreflang
+        $canonicalUrl = $this->buildCanonicalUrl($page, $lang);
+        $hreflangUrls = $this->buildHreflangUrls($page);
+
         $layoutData = [
             'lang_code' => $siteData['lang_code'],
             'site_title' => $siteData['site_title'],
@@ -44,6 +45,8 @@ abstract class AbstractController implements ControllerInterface
             'description' => $siteData['description'],
             'version' => $siteData['version'],
             'page' => $page,
+            'canonical_url' => $canonicalUrl,
+            'hreflang_urls' => $hreflangUrls,
             'nav_html' => $this->viewRenderer->renderWithoutLayout('nav.php', $navData),
             'left_sidebar_html' => $this->renderSidebar($leftSidebarContent, 'left'),
             'right_sidebar_html' => $this->renderSidebar($rightSidebarContent, 'right'),
@@ -53,6 +56,41 @@ abstract class AbstractController implements ControllerInterface
         ];
 
         return $this->viewRenderer->render($templateName, $pageData, $layoutData);
+    }
+
+    /**
+     * Формирует canonical URL для страницы.
+     * Контроллеры могут переопределять этот метод для страниц с дополнительными параметрами.
+     */
+    protected function buildCanonicalUrl(string $page, string $lang): string
+    {
+        $baseUrl = 'https://projecthumanity.space/';
+
+        if ($page === 'home') {
+            return $baseUrl . '?lang=' . $lang;
+        }
+
+        return $baseUrl . '?page=' . $page . '&lang=' . $lang;
+    }
+
+    /**
+     * Формирует hreflang URL для всех языков.
+     * Контроллеры могут переопределять этот метод для страниц с дополнительными параметрами.
+     */
+    protected function buildHreflangUrls(string $page): array
+    {
+        $config = $this->container->get('config');
+        $allowedLanguages = $config['app']['allowed_languages'] ?? ['ru', 'en'];
+
+        $urls = [];
+        foreach ($allowedLanguages as $langCode) {
+            $urls[$langCode] = $this->buildCanonicalUrl($page, $langCode);
+        }
+
+        // x-default на основной язык
+        $urls['x-default'] = $this->buildCanonicalUrl($page, 'ru');
+
+        return $urls;
     }
 
     private function renderSidebar(?array $content, string $position): string

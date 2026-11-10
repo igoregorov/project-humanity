@@ -46,6 +46,21 @@ class LicenseController extends AbstractController
         return $this->renderPage('page_license.php', $data, $page, $lang);
     }
 
+    /**
+     * Переопределяем canonical для учёта параметра doc.
+     * Порядок параметров строго согласован с SitemapController.
+     */
+    protected function buildCanonicalUrl(string $page, string $lang): string
+    {
+        $doc = $_GET['doc'] ?? 'overview';
+        if (!in_array($doc, self::VALID_DOCS, true)) {
+            $doc = 'overview';
+        }
+
+        // Порядок: page, lang, doc (как в SitemapController::buildUrl)
+        return 'https://projecthumanity.space/?page=license&lang=' . $lang . '&doc=' . $doc;
+    }
+
     private function renderMarkdown(string $markdown): string
     {
         $config = [

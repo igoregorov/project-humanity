@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
 
-// src/Http/Router.php
-
 namespace App\Http;
 
 use App\Infrastructure\ContainerInterface;
@@ -18,14 +16,6 @@ class Router
         $this->container = $container;
     }
 
-    /**
-     * Регистрирует новый маршрут.
-     *
-     * @param string $page Название страницы (например, 'home', 'about')
-     * @param string $controllerClass Полное имя класса контроллера
-     * @param string $action Метод контроллера для вызова (по умолчанию 'handle')
-     * @return void
-     */
     public function addRoute(string $page, string $controllerClass, string $action = 'handle'): void
     {
         $this->routes[$page] = [
@@ -35,25 +25,23 @@ class Router
     }
 
     /**
-     * Разрешает маршрут на основе параметров запроса ($_GET).
-     * Возвращает экземпляр контроллера и имя метода для вызова.
-     *
-     * @return array ['controller' => ControllerInterface, 'action' => string]
-     * @throws RouterException Если маршрут не найден или контроллер некорректен.
+     * Возвращает все зарегистрированные маршруты.
+     * Используется для генерации sitemap.
      */
+    public function getAllRoutes(): array
+    {
+        return $this->routes;
+    }
+
     public function resolve(): array
     {
         $page = $_GET['page'] ?? 'home';
         $lang = $_GET['lang'] ?? 'ru';
 
-        // Проверка разрешенного языка (можно вынести в отдельный сервис, если используется часто)
         $config = $this->container->get('config');
-
         $allowedLanguages = ['ru'];
-
         if (is_array($config)) {
             $appConfig = $config['app'] ?? [];
-
             if (is_array($appConfig) && isset($appConfig['allowed_languages']) && is_array($appConfig['allowed_languages'])) {
                 $allowedLanguages = $appConfig['allowed_languages'];
             }
@@ -67,7 +55,6 @@ class Router
             $lang = $allowedLanguages[0] ?? 'ru';
         }
 
-        // Установка языка в контейнере
         $this->container->set('request_lang', $lang);
 
         if (!isset($this->routes[$page])) {
@@ -78,15 +65,12 @@ class Router
         $controllerClass = $routeConfig['controller_class'];
         $action = $routeConfig['action'];
 
-        // Получаем контроллер из контейнера
         $controller = $this->container->get($controllerClass);
 
-        // Проверяем, что контроллер реализует нужный интерфейс
         if (!$controller instanceof ControllerInterface) {
             throw new RouterException("Контроллер '$controllerClass' должен реализовывать интерфейс ControllerInterface.");
         }
 
-        // Проверяем, что метод существует
         if (!method_exists($controller, $action)) {
             throw new RouterException("Метод '$action' не найден в контроллере '$controllerClass'.");
         }
@@ -94,8 +78,8 @@ class Router
         return [
             'controller' => $controller,
             'action' => $action,
-            'lang' => $lang, // Передаём язык, он нужен для вызова метода контроллера
-            'page' => $page  // Передаём page, он тоже может понадобиться
+            'lang' => $lang,
+            'page' => $page
         ];
     }
 }
