@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <!-- Home -->
+    <url><loc>https://projecthumanity.space/?page=home&amp;lang=ru</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+    <url><loc>https://projecthumanity.space/?page=home&amp;lang=en</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+
+    <!-- About -->
+    <url><loc>https://projecthumanity.space/?page=about&amp;lang=ru</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+    <url><loc>https://projecthumanity.space/?page=about&amp;lang=en</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+    <!-- Principles -->
+    <url><loc>https://projecthumanity.space/?page=principles&amp;lang=ru</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+    <url><loc>https://projecthumanity.space/?page=principles&amp;lang=en</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+    <!-- Living Book -->
+    <url><loc>https://projecthumanity.space/?page=living_book&amp;lang=ru</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+    <url><loc>https://projecthumanity.space/?page=living_book&amp;lang=en</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+
+    <!-- Books -->
+    <url><loc>https://projecthumanity.space/?page=books&amp;lang=ru</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+    <url><loc>https://projecthumanity.space/?page=books&amp;lang=en</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+    <!-- License pages -->
+    <url><loc>https://projecthumanity.space/?page=license&amp;doc=overview&amp;lang=ru</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+    <url><loc>https://projecthumanity.space/?page=license&amp;doc=overview&amp;lang=en</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+    <url><loc>https://projecthumanity.space/?page=license&amp;doc=book&amp;lang=ru</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+    <url><loc>https://projecthumanity.space/?page=license&amp;doc=book&amp;lang=en</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+    <url><loc>https://projecthumanity.space/?page=license&amp;doc=site&amp;lang=ru</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+    <url><loc>https://projecthumanity.space/?page=license&amp;doc=site&amp;lang=en</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+    <url><loc>https://projecthumanity.space/?page=license&amp;doc=code&amp;lang=ru</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+    <url><loc>https://projecthumanity.space/?page=license&amp;doc=code&amp;lang=en</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+    <url><loc>https://projecthumanity.space/?page=license&amp;doc=dmca&amp;lang=ru</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+    <url><loc>https://projecthumanity.space/?page=license&amp;doc=dmca&amp;lang=en</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+</urlset>

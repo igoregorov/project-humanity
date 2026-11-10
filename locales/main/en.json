@@ -70,5 +70,12 @@
     "living_book_owner": "Author",
     "living_book_previous_owner": "Previous owner",
     "living_book_your_entry": "Your entry",
-    "living_book_create_entry": "Leave a response"
+    "living_book_create_entry": "Leave a response",
+
+    "licenses_link": "Licenses",
+    "page_license_doc_overview": "Licensing Overview",
+    "page_license_doc_book": "Book License",
+    "page_license_doc_site": "Website Terms",
+    "page_license_doc_code": "Source Code License",
+    "page_license_doc_dmca": "Copyright Policy"
 }
