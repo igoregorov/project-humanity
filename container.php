@@ -146,6 +146,10 @@ $container->singleton(App\Http\Controllers\LicenseController::class, function ($
     return new App\Http\Controllers\LicenseController($c);
 });
 
+$container->singleton(App\Http\Controllers\SitemapController::class, function ($c) {
+    return new App\Http\Controllers\SitemapController($c);
+});
+
 // Сервис для определения языка запроса
 $container->set('request_lang', 'ru');
 
@@ -162,6 +166,7 @@ $container->singleton('router', function ($c) {
     $router->addRoute('books', App\Http\Controllers\BooksController::class);
 
     $router->addRoute('license', App\Http\Controllers\LicenseController::class);
+    $router->addRoute('sitemap', App\Http\Controllers\SitemapController::class);
 
     // Пример добавления новой страницы:
     // $router->addRoute('contacts', App\Http\Controllers\ContactsController::class);
