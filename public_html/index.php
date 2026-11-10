@@ -1,5 +1,5 @@
 <?php
-// index.php
+// public_html/index.php
 declare(strict_types=1);
 
 // Подключаем ядро приложения и получаем контейнер
@@ -12,7 +12,7 @@ try {
     $requestHandler = new RequestHandler($container);
     $requestHandler->handle();
 
-} catch (\Throwable $e) {
+} catch (Throwable $e) {
     $config = $container->get('config');
     $debugMode = $config['app']['debug'] ?? true;
     sendCleanErrorPage($e->getMessage(), $e->getFile(), (string) $e->getLine(), $e->getTraceAsString(), $debugMode);

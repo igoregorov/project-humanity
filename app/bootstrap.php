@@ -2,6 +2,9 @@
 // app/bootstrap.php
 declare(strict_types=1);
 
+use App\Infrastructure\ConfigLoader;
+use App\Infrastructure\DotEnv;
+use App\Infrastructure\EnvironmentDetector;
 use function App\Http\sendCleanErrorPage;
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -23,14 +26,58 @@ if (!defined('BOOKS_DIR')) {
 
 if (PHP_SAPI !== 'cli') {
     // ==========================================================
-    // ЗАЩИТА ОТ REVERSE-PROXY КЛОНОВ (foodinnovation.ru и подобных)
+    // ЗАЩИТА ОТ REVERSE-PROXY КЛОНОВ
     // ==========================================================
-    $allowedHosts = ['projecthumanity.space', 'www.projecthumanity.space'];
-    $currentHost = $_SERVER['HTTP_HOST'] ?? '';
-    // Отрезаем порт, если он указан (актуально для локальной разработки)
-    $hostWithoutPort = preg_replace('/:\d+$/', '', $currentHost);
+    // Теперь разрешённые хосты берутся из .env.setting:
+    // ALLOWED_HOSTS=projecthumanity.space,www.projecthumanity.space
+    //
+    // Файл .env.setting должен лежать в корне проекта.
+    // ==========================================================
 
-    if (!in_array($hostWithoutPort, $allowedHosts, true)) {
+    $envSettingPath = PROJECT_ROOT . '/.env.setting';
+
+    if (!is_file($envSettingPath) || !is_readable($envSettingPath)) {
+        error_log("Configuration file not found or not readable: $envSettingPath");
+
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Configuration error: .env.setting is missing or unreadable.';
+        exit(1);
+    }
+
+    try {
+        new DotEnv($envSettingPath);
+
+        // Сразу валидируем APP_ENV, чтобы не продолжать работу
+        // с битой конфигурацией окружения.
+        new EnvironmentDetector()->detect();
+    } catch (Throwable $e) {
+        error_log('Configuration error in .env.setting: ' . $e->getMessage());
+
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Configuration error: invalid .env.setting.';
+        exit(1);
+    }
+
+    $allowedHosts = ConfigLoader::parseAllowedHosts(
+        (string) ($_ENV['ALLOWED_HOSTS'] ?? $_SERVER['ALLOWED_HOSTS'] ?? '')
+    );
+
+    if ($allowedHosts === []) {
+        error_log('ALLOWED_HOSTS is empty in .env.setting');
+
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Configuration error: ALLOWED_HOSTS must be set in .env.setting.';
+        exit(1);
+    }
+
+    $currentHost = ConfigLoader::normalizeHost(
+        (string) ($_SERVER['HTTP_HOST'] ?? '')
+    );
+
+    if ($currentHost === '' || !in_array($currentHost, $allowedHosts, true)) {
         http_response_code(403);
         header('Content-Type: text/plain; charset=UTF-8');
         echo 'Forbidden: Invalid Host';
@@ -96,8 +143,7 @@ set_exception_handler(function (Throwable $e): void {
         $e->getMessage(),
         $e->getFile(),
         (string) $e->getLine(),
-        $e->getTraceAsString(),
-        false
+        $e->getTraceAsString()
     );
 });
 
