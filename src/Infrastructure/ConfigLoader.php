@@ -1,60 +1,71 @@
 <?php
 declare(strict_types=1);
 
+//src/Infrastructure/ConfigLoader.php
+
 namespace App\Infrastructure;
 
 use RuntimeException;
 
 class ConfigLoader
 {
-    private string $envLocalPath;
-    private string $envProductionPath;
+    private string $envSettingPath;
     private string $languagesPath;
     private string $settingsPath;
 
     public function __construct(
-        ?string $envLocalPath = null,
-        ?string $envProductionPath = null,
+        ?string $envSettingPath = null,
         ?string $languagesPath = null,
         ?string $settingsPath = null
     ) {
-        $projectRoot = dirname(__DIR__, 2); 
+        $projectRoot = dirname(__DIR__, 2);
 
-        $this->envLocalPath = $envLocalPath ?? $projectRoot . '/.env.local';
-        $this->envProductionPath = $envProductionPath ?? $projectRoot . '/config/.env.production';
+        $this->envSettingPath = $envSettingPath ?? $projectRoot . '/.env.setting';
         $this->languagesPath = $languagesPath ?? $projectRoot . '/config/languages.json';
         $this->settingsPath = $settingsPath ?? $projectRoot . '/config/.settings.config';
     }
 
     public function load(): array
     {
-        // 1. Определяем окружение
+        if (!is_file($this->envSettingPath) || !is_readable($this->envSettingPath)) {
+            throw new RuntimeException("Файл настроек не найден или недоступен: $this->envSettingPath");
+        }
+
+        new DotEnv($this->envSettingPath);
+
         $environmentDetector = new EnvironmentDetector();
         $environment = $environmentDetector->detect();
 
-        // 2. Загружаем .env файл в зависимости от окружения
-        $envFile = $environment === EnvironmentDetector::ENV_PRODUCTION ? $this->envProductionPath : $this->envLocalPath;
-        new DotEnv($envFile); // Загружает переменные в $_ENV
-
-        // 3. Загружаем список поддерживаемых языков
         $languagesData = $this->loadLanguagesData($this->languagesPath);
-
-        // 4. Загружаем настройки приложения
         $settingsData = $this->loadSettingsData($this->settingsPath);
 
-        // 5. Собираем конфигурацию
         return $this->buildConfig($environment, $languagesData, $settingsData);
     }
 
     private function loadLanguagesData(string $path): array
     {
-        if (!file_exists($path)) {
-            throw new RuntimeException("Файл языков не найден: $path");
+        if (!is_file($path) || !is_readable($path)) {
+            throw new RuntimeException("Файл языков не найден или недоступен для чтения: $path");
         }
-        $languagesData = json_decode(file_get_contents($path), true);
+
+        $contents = file_get_contents($path);
+
+        if ($contents === false) {
+            throw new RuntimeException("Не удалось прочитать файл языков: $path");
+        }
+
+        $languagesData = json_decode($contents, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException(
+                "Неверный JSON в файле языков: $path. Ошибка: " . json_last_error_msg()
+            );
+        }
+
         if (!is_array($languagesData)) {
             throw new RuntimeException("Неверный формат файла языков: $path");
         }
+
         return $languagesData;
     }
 
@@ -66,31 +77,34 @@ class ConfigLoader
             'feature_comments' => false
         ];
 
-        if (!file_exists($path)) {
-            error_log("Файл настроек не найден: $path. Используются настройки по умолчанию.");
+        if (!is_file($path) || !is_readable($path)) {
+            error_log("Файл настроек не найден или недоступен для чтения: $path. Используются настройки по умолчанию.");
             return $defaultSettings;
         }
 
         $settingsContent = file_get_contents($path);
+
+        if ($settingsContent === false) {
+            error_log("Не удалось прочитать файл настроек: $path. Используются настройки по умолчанию.");
+            return $defaultSettings;
+        }
+
         $settings = [];
 
-        // Парсим INI-подобный формат
         $lines = explode("\n", $settingsContent);
+
         foreach ($lines as $line) {
             $line = trim($line);
 
-            // Пропускаем комментарии и пустые строки
-            if (empty($line) || str_starts_with($line, ';')) {
+            if ($line === '' || str_starts_with($line, ';')) {
                 continue;
             }
 
-            // Разбираем ключ=значение
             if (str_contains($line, '=')) {
                 [$key, $value] = explode('=', $line, 2);
                 $key = trim($key);
                 $value = trim($value);
 
-                // Преобразуем булевы значения
                 if ($value === 'true') {
                     $value = true;
                 } elseif ($value === 'false') {
@@ -143,15 +157,26 @@ class ConfigLoader
             ]
         ];
     }
+
     private function buildConfig(string $environment, array $languagesData, array $settingsData): array
     {
         $appDebug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        
-        $requiredEnvVars = ['APP_DEBUG'];
-        $missingVars = array_filter($requiredEnvVars, fn($var) => !isset($_ENV[$var]));
-        if (!empty($missingVars)) {
-            throw new RuntimeException("Отсутствуют обязательные переменные окружения: " . implode(', ', $missingVars));
+
+        $requiredEnvVars = ['APP_ENV', 'APP_DEBUG'];
+        $missingVars = array_filter(
+            $requiredEnvVars,
+            static fn (string $var): bool => !isset($_ENV[$var])
+        );
+
+        if ($missingVars !== []) {
+            throw new RuntimeException(
+                "Отсутствуют обязательные переменные окружения: " . implode(', ', $missingVars)
+            );
         }
+
+        $allowedHosts = self::parseAllowedHosts(
+            (string) ($_ENV['ALLOWED_HOSTS'] ?? $_SERVER['ALLOWED_HOSTS'] ?? '')
+        );
 
         $projectRoot = dirname(__DIR__, 2);
 
@@ -162,11 +187,12 @@ class ConfigLoader
                 'dbname' => $_ENV['DB_NAME'] ?? '',
                 'user' => $_ENV['DB_USER'] ?? '',
                 'password' => $_ENV['DB_PASS'] ?? '',
-                'is_active' => self::resolveDatabaseIsActive($settingsData, true),
+                'is_active' => self::resolveDatabaseIsActive($settingsData),
             ],
             'app' => [
                 'debug' => $appDebug,
                 'environment' => $environment,
+                'allowed_hosts' => $allowedHosts,
                 'allowedPages' => ['home', 'about', 'principles'],
                 'locales' => [
                     'main'       => $projectRoot . '/locales/main',
@@ -190,11 +216,12 @@ class ConfigLoader
 
     public static function resolveDatabaseIsActive(array $settings, bool $default = true): bool
     {
-        return self::resolveBool($settings, ['DB_IS_ACTIVE', 'db_is_active'], $default);
+        return self::resolveBool($settings, $default);
     }
 
-    private static function resolveBool(array $settings, array $keys, bool $default): bool
+    private static function resolveBool(array $settings, bool $default): bool
     {
+        $keys = ['DB_IS_ACTIVE', 'db_is_active'];
         foreach ($keys as $key) {
             if (!array_key_exists($key, $settings)) {
                 continue;
@@ -212,5 +239,85 @@ class ConfigLoader
         }
 
         return $default;
+    }
+
+    /**
+     * Нормализует хост для сравнения.
+     *
+     * Поддерживает:
+     * - example.com
+     * - example.com:8080
+     * - localhost:8000
+     * - 127.0.0.1:8080
+     * - [::1]:8000
+     * - ::1
+     * - http://example.com/path
+     * - https://example.com:443/path
+     */
+    public static function normalizeHost(string $host): string
+    {
+        $host = trim(strtolower($host));
+
+        if ($host === '') {
+            return '';
+        }
+
+        // Удаляем схему, если вдруг пришла вместе с хостом.
+        $host = (string) preg_replace('#^[a-z][a-z0-9+.-]*://#i', '', $host);
+
+        // Удаляем path/query/fragment.
+        $host = (string) preg_replace('~[/?#].*$~', '', $host);
+
+        // IPv6 в квадратных скобках: [::1]:8000 -> ::1
+        if (str_starts_with($host, '[')) {
+            $closePos = strpos($host, ']');
+
+            if ($closePos !== false) {
+                $host = substr($host, 1, $closePos - 1);
+            }
+        } else {
+            if (substr_count($host, ':') === 1) {
+                $host = (string) preg_replace('/:\d+$/', '', $host);
+            }
+        }
+
+        // Убираем завершающую точку FQDN, если она есть.
+        return rtrim($host, '.');
+    }
+
+    /**
+     * Парсит список разрешённых хостов.
+     *
+     * Ожидается формат:
+     * ALLOWED_HOSTS=localhost,127.0.0.1,::1
+     *
+     * Также допускается разделение пробелами:
+     * ALLOWED_HOSTS=localhost 127.0.0.1 ::1
+     */
+    public static function parseAllowedHosts(string $raw): array
+    {
+        $raw = trim($raw);
+
+        if ($raw === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY);
+
+        if (!is_array($parts)) {
+            return [];
+        }
+
+        $hosts = [];
+
+        foreach ($parts as $part) {
+            $host = self::normalizeHost((string) $part);
+
+            if ($host !== '' && !in_array($host, $hosts, true)) {
+                $hosts[] = $host;
+            }
+        }
+
+        return $hosts;
     }
 }

@@ -14,8 +14,11 @@ composer.phar
 # Secrets & Local Config
 .env
 .env.*
-config/.env.production
+!.env.example
+!.env.setting.example
+
 config/.settings.config
+!config/.settings.config.example
 
 # Runtime Data (Storage & Logs)
 /storage/*
@@ -32,3 +35,8 @@ config/.settings.config
 /node_modules
 /dist
 /.phpunit.cache
+
+# Caches
+/.phpunit.cache/
+.phpunit.result.cache
+/.php-cs-fixer.cache/

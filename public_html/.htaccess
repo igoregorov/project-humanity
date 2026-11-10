@@ -10,7 +10,6 @@ DirectoryIndex index.php
 # 1. Базовый запрет скрытых и служебных файлов
 # ----------------------------------------------------------
 <IfModule mod_authz_core.c>
-    # Скрытые файлы: .env.local, .gitignore и т.п.
     <FilesMatch "^\.">
         Require all denied
     </FilesMatch>

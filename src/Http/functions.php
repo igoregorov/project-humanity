@@ -22,19 +22,19 @@ function sendCleanErrorPage(
     }
 
     if (PHP_SAPI === 'cli') {
-        fwrite(STDERR, "ERROR: {$message}\n");
+        fwrite(STDERR, "ERROR: $message\n");
 
         if ($debugMode) {
             if ($file !== null && $file !== '') {
-                fwrite(STDERR, "FILE: {$file}\n");
+                fwrite(STDERR, "FILE: $file\n");
             }
 
             if ($line !== null && $line !== '') {
-                fwrite(STDERR, "LINE: {$line}\n");
+                fwrite(STDERR, "LINE: $line\n");
             }
 
             if ($trace !== null && $trace !== '') {
-                fwrite(STDERR, "TRACE:\n{$trace}\n");
+                fwrite(STDERR, "TRACE:\n$trace\n");
             }
         }
 
@@ -67,7 +67,7 @@ function sendCleanErrorPage(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{$pageTitle}</title>
+<title>$pageTitle</title>
 <style>
 body {
     font-family: Arial, sans-serif;
@@ -103,8 +103,8 @@ h1 {
 </head>
 <body>
 <div class="error-container">
-<h1>{$heading}</h1>
-<p>{$description}</p>
+<h1>$heading</h1>
+<p>$description</p>
 HTML;
 
     if ($debugMode) {

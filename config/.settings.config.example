@@ -1,0 +1,3 @@
+db_is_active=true
+feature_auth=true
+feature_comments=false

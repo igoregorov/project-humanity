@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+//src/Infrastructure/DotEnv.php
+
 namespace App\Infrastructure;
 
 use InvalidArgumentException;
