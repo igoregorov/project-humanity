@@ -142,6 +142,10 @@ $container->singleton(BooksController::class, function ($c) {
     return new BooksController($c);
 });
 
+$container->singleton(App\Http\Controllers\LicenseController::class, function ($c) {
+    return new App\Http\Controllers\LicenseController($c);
+});
+
 // Сервис для определения языка запроса
 $container->set('request_lang', 'ru');
 
@@ -156,6 +160,9 @@ $container->singleton('router', function ($c) {
     $router->addRoute('living_book', LivingBookController::class);
     $router->addRoute('auth', App\Http\Controllers\AuthController::class);
     $router->addRoute('books', App\Http\Controllers\BooksController::class);
+
+    $router->addRoute('license', App\Http\Controllers\LicenseController::class);
+
     // Пример добавления новой страницы:
     // $router->addRoute('contacts', App\Http\Controllers\ContactsController::class);
 
@@ -230,7 +237,7 @@ $container->singleton('auth_service', function ($c) {
 });
 
 // Сервис CAPTCHA
-$container->singleton('captcha_service', function ($c) {
+$container->singleton('captcha_service', function () {
     return new App\Infrastructure\Security\CaptchaService();
 });
 
@@ -251,7 +258,7 @@ $container->singleton('database.health_check', function ($c) {
 });
 
 // Сервис загрузки аватаров
-$container->singleton('avatar_service', function ($c) {
+$container->singleton('avatar_service', function () {
     $uploadDir = __DIR__ . '/storage/avatars';
 
     // Веб-путь: через скрипт-прокладку для безопасности

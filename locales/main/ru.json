@@ -70,5 +70,12 @@
     "living_book_owner": "Автор",
     "living_book_previous_owner": "Предыдущий владелец",
     "living_book_your_entry": "Ваша запись",
-    "living_book_create_entry": "Оставить отклик"
+    "living_book_create_entry": "Оставить отклик",
+
+    "licenses_link": "Лицензии",
+    "page_license_doc_overview": "Обзор лицензий",
+    "page_license_doc_book": "Лицензия на книгу",
+    "page_license_doc_site": "Условия использования сайта",
+    "page_license_doc_code": "Лицензия на код",
+    "page_license_doc_dmca": "Политика авторских прав"
 }
